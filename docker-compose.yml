@@ -1,0 +1,68 @@
+version: "3.8"
+
+services:
+  # Next.js Full-Stack App
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nexus_crm_app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - MONGODB_URI=mongodb://mongodb:27017/nexus_crm
+      - JWT_SECRET=super_secret_production_jwt_key_nexus_crm_2026!
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - nexus_network
+
+  # MongoDB Database Service
+  mongodb:
+    image: mongo:7.0
+    container_name: nexus_crm_mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=nexus_crm
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - nexus_network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # Mongo Express Database Admin GUI
+  mongo-express:
+    image: mongo-express:latest
+    container_name: nexus_crm_mongo_express
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=mongodb
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_BASICAUTH=false
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - nexus_network
+
+networks:
+  nexus_network:
+    driver: bridge
+
+volumes:
+  mongo_data:
+    driver: local
