@@ -33,6 +33,8 @@ import {
   Inbox,
   Calendar as CalendarIcon,
   Plus,
+  Timer,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -89,6 +91,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Tasks", href: "/tasks", icon: CheckCheck },
       { label: "Teams", href: "/teams", icon: Users2 },
       { label: "Members", href: "/members", icon: Users },
+      { label: "Workload", href: "/workload", icon: Timer },
     ],
   },
   {
@@ -104,6 +107,7 @@ const NAV_GROUPS: NavGroup[] = [
     title: "Other",
     items: [
       { label: "Reports", href: "/reports", icon: BarChart3 },
+      { label: "Automations", href: "/automation", icon: Zap },
       { label: "Notifications", href: "/notifications", icon: Bell },
       { label: "Settings", href: "/settings", icon: Settings },
     ],

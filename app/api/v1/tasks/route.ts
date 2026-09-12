@@ -21,6 +21,9 @@ export async function GET(req: NextRequest) {
   const endDate = searchParams.get("endDate");
   const { page, limit, skip, search, sortOptions } = parsePagination(req);
 
+  const sprintId = searchParams.get("sprintId");
+  const issueType = searchParams.get("issueType");
+
   const query: any = {
     organizationId: auth!.organizationId,
     isDeleted: false,
@@ -31,6 +34,16 @@ export async function GET(req: NextRequest) {
   }
   if (priority && priority !== "ALL") {
     query.priority = priority;
+  }
+  if (issueType && issueType !== "ALL") {
+    query.issueType = issueType;
+  }
+  if (sprintId) {
+    if (sprintId === "none" || sprintId === "backlog") {
+      query.sprintId = { $in: [null, undefined] };
+    } else {
+      query.sprintId = sprintId;
+    }
   }
   if (assignedTo) {
     query.assignedTo = assignedTo;
@@ -143,6 +156,9 @@ export async function POST(req: NextRequest) {
       dependencies = [],
       isPersonal = false,
       recurring,
+      issueType = "task",
+      storyPoints = 0,
+      sprintId,
     } = body;
 
     if (!title || !title.trim()) {
@@ -155,10 +171,13 @@ export async function POST(req: NextRequest) {
       description,
       projectId: projectId || undefined,
       teamId: teamId || undefined,
+      sprintId: sprintId || undefined,
       startDate: startDate ? new Date(startDate) : undefined,
       dueDate: dueDate ? new Date(dueDate) : undefined,
       priority,
       status,
+      issueType,
+      storyPoints: Number(storyPoints) || 0,
       assignedTo: assignedTo || auth!.user._id,
       reporterId: auth!.user._id,
       labels: Array.isArray(labels) ? labels : [],

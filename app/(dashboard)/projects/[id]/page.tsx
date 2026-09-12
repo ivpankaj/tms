@@ -44,7 +44,27 @@ import {
   Loader2,
   ChevronRight,
   Flag,
+  Layers,
+  BookOpen,
+  Play,
+  Check,
+  Sparkles,
+  Bug,
+  Bookmark,
+  Zap,
+  CheckSquare,
+  Eye,
+  Edit3,
+  Timer,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   DndContext,
   useDroppable,
@@ -215,6 +235,127 @@ export default function ProjectDetailPage() {
       return json.success ? json.data : [];
     },
     enabled: Boolean(projectId),
+  });
+
+  // 4. Fetch Project Sprints
+  const { data: sprints = [] } = useQuery({
+    queryKey: ["project-sprints", projectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/projects/${projectId}/sprints`);
+      const json = await res.json();
+      return json.success ? json.data : [];
+    },
+    enabled: Boolean(projectId),
+  });
+
+  // 5. Fetch Project Docs
+  const { data: docs = [] } = useQuery({
+    queryKey: ["project-docs", projectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/projects/${projectId}/docs`);
+      const json = await res.json();
+      return json.success ? json.data : [];
+    },
+    enabled: Boolean(projectId),
+  });
+
+  // Sprint & Doc State
+  const [isCreateSprintOpen, setIsCreateSprintOpen] = useState(false);
+  const [newSprintName, setNewSprintName] = useState("");
+  const [newSprintGoal, setNewSprintGoal] = useState("");
+  const [isCreateDocOpen, setIsCreateDocOpen] = useState(false);
+  const [newDocTitle, setNewDocTitle] = useState("");
+  const [newDocCategory, setNewDocCategory] = useState("General");
+  const [newDocContent, setNewDocContent] = useState("");
+  const [viewingDoc, setViewingDoc] = useState<any>(null);
+  const [docCategoryFilter, setDocCategoryFilter] = useState("ALL");
+
+  // Create Sprint Mutation
+  const createSprintMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/projects/${projectId}/sprints`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newSprintName, goal: newSprintGoal }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error?.message || "Failed to create sprint");
+      return json.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-sprints", projectId] });
+      toast.success("Sprint created");
+      setNewSprintName("");
+      setNewSprintGoal("");
+      setIsCreateSprintOpen(false);
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  // Start / Complete Sprint Mutation
+  const sprintActionMutation = useMutation({
+    mutationFn: async ({ sprintId, action, rollOverIncomplete }: any) => {
+      const res = await fetch(`/api/v1/projects/${projectId}/sprints`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, sprintId, rollOverIncomplete }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error?.message || "Failed to update sprint");
+      return json.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-sprints", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
+      toast.success("Sprint updated");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  // Assign Task to Sprint
+  const assignTaskSprintMutation = useMutation({
+    mutationFn: async ({ taskId, sprintId }: { taskId: string; sprintId: string | null }) => {
+      const res = await fetch(`/api/v1/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sprintId }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error?.message || "Failed to assign sprint");
+      return json.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-sprints", projectId] });
+      toast.success("Task sprint updated");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  // Create Doc Mutation
+  const createDocMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/projects/${projectId}/docs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: newDocTitle,
+          category: newDocCategory,
+          content: newDocContent,
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error?.message || "Failed to create document");
+      return json.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-docs", projectId] });
+      toast.success("Document created");
+      setNewDocTitle("");
+      setNewDocContent("");
+      setIsCreateDocOpen(false);
+    },
+    onError: (err: any) => toast.error(err.message),
   });
 
   // Update Project Mutation
@@ -449,20 +590,20 @@ export default function ProjectDetailPage() {
           <TabsTrigger value="board" className="text-sm py-2">
             Board
           </TabsTrigger>
-          <TabsTrigger value="calendar" className="text-sm py-2">
-            Calendar
+          <TabsTrigger value="sprints" className="text-sm py-2">
+            Sprints ({sprints.length})
           </TabsTrigger>
           <TabsTrigger value="timeline" className="text-sm py-2">
             Timeline
           </TabsTrigger>
-          <TabsTrigger value="files" className="text-sm py-2">
-            Files
+          <TabsTrigger value="docs" className="text-sm py-2">
+            Docs ({docs.length})
+          </TabsTrigger>
+          <TabsTrigger value="calendar" className="text-sm py-2">
+            Calendar
           </TabsTrigger>
           <TabsTrigger value="activity" className="text-sm py-2">
             Activity
-          </TabsTrigger>
-          <TabsTrigger value="settings" className="text-sm py-2">
-            Settings
           </TabsTrigger>
         </TabsList>
 
@@ -682,13 +823,372 @@ export default function ProjectDetailPage() {
           </Card>
         </TabsContent>
 
-        {/* Tab 6: Files */}
-        <TabsContent value="files" className="pt-2">
-          <Card className="p-8 text-center text-xs text-muted-foreground space-y-3">
-            <FileText className="h-8 w-8 mx-auto text-muted-foreground" />
-            <p className="font-semibold text-foreground text-sm">No files uploaded yet</p>
-            <p>Attach requirement docs, design specs, or diagrams to project tasks.</p>
-          </Card>
+        {/* Tab: Sprints & Backlog */}
+        <TabsContent value="sprints" className="space-y-6 pt-2">
+          {/* Active Sprint Section */}
+          {(() => {
+            const activeSprint = sprints.find((s: any) => s.status === "active");
+            const sprintTasks = activeSprint
+              ? tasks.filter((t: any) => t.sprintId === activeSprint._id)
+              : [];
+            const backlogTasks = tasks.filter((t: any) => !t.sprintId);
+
+            return (
+              <div className="space-y-6">
+                {/* Active Sprint Header Banner */}
+                {activeSprint ? (
+                  <Card className="p-6 border-primary/40 bg-card space-y-4 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-primary text-primary-foreground font-mono uppercase text-xs">
+                            Active Sprint
+                          </Badge>
+                          <h3 className="text-lg font-bold text-foreground">{activeSprint.name}</h3>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {activeSprint.goal || "Focusing on key deliverables and sprint goals."}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            sprintActionMutation.mutate({
+                              sprintId: activeSprint._id,
+                              action: "complete",
+                              rollOverIncomplete: true,
+                            })
+                          }
+                          disabled={sprintActionMutation.isPending}
+                          className="text-xs h-9"
+                        >
+                          Complete Sprint
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleQuickAdd("Todo")}
+                          className="text-xs h-9 gap-1"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Add Task
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Sprint Metrics Bar */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t text-xs">
+                      <div>
+                        <span className="text-muted-foreground block text-[11px]">Duration</span>
+                        <span className="font-semibold text-foreground">
+                          {activeSprint.endDate
+                            ? `${format(new Date(activeSprint.startDate || Date.now()), "MMM d")} - ${format(new Date(activeSprint.endDate), "MMM d")}`
+                            : "Ongoing"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[11px]">Tasks</span>
+                        <span className="font-semibold text-foreground font-mono">
+                          {activeSprint.completedTasks} / {activeSprint.totalTasks} completed
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[11px]">Story Points Velocity</span>
+                        <span className="font-semibold text-foreground font-mono">
+                          {activeSprint.completedStoryPoints} / {activeSprint.totalStoryPoints} pts
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[11px]">Progress</span>
+                        <span className="font-bold text-primary font-mono">
+                          {activeSprint.progress}%
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Active Sprint Task List */}
+                    <div className="space-y-2 pt-2">
+                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Sprint Tasks ({sprintTasks.length})
+                      </h4>
+                      {sprintTasks.length === 0 ? (
+                        <div className="text-center py-6 text-xs text-muted-foreground border rounded-lg border-dashed">
+                          No tasks in this sprint yet. Move tasks from the backlog below.
+                        </div>
+                      ) : (
+                        sprintTasks.map((t: any) => (
+                          <div
+                            key={t._id}
+                            className="p-3 rounded-xl border bg-card hover:border-primary/50 transition-all flex items-center justify-between gap-3 text-xs shadow-2xs"
+                          >
+                            <div
+                              onClick={() => handleOpenTask(t._id)}
+                              className="flex items-center gap-2.5 truncate cursor-pointer flex-1"
+                            >
+                              <Badge variant="outline" className="font-mono text-[10px]">
+                                {t.issueType || "task"}
+                              </Badge>
+                              <span
+                                className={`font-semibold truncate ${
+                                  t.status === "Done" ? "line-through text-muted-foreground" : ""
+                                }`}
+                              >
+                                {t.title}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              {t.storyPoints > 0 && (
+                                <Badge variant="secondary" className="font-mono text-[10px]">
+                                  {t.storyPoints} pts
+                                </Badge>
+                              )}
+                              <Badge
+                                variant={
+                                  t.priority === "Urgent" || t.priority === "High"
+                                    ? "destructive"
+                                    : "secondary"
+                                }
+                                className="text-[10px]"
+                              >
+                                {t.priority}
+                              </Badge>
+                              <Badge variant="outline" className="text-[10px]">
+                                {t.status}
+                              </Badge>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  assignTaskSprintMutation.mutate({ taskId: t._id, sprintId: null })
+                                }
+                                className="h-6 text-[10px] text-muted-foreground hover:text-foreground"
+                              >
+                                To Backlog
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </Card>
+                ) : (
+                  <Card className="p-8 text-center space-y-3 border-dashed">
+                    <Layers className="h-8 w-8 mx-auto text-primary" />
+                    <h3 className="text-base font-bold text-foreground">No Active Sprint</h3>
+                    <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                      Plan your next sprint by selecting tasks from the backlog below, or create a new sprint container.
+                    </p>
+                    <div className="flex justify-center gap-2 pt-2">
+                      <Button
+                        size="sm"
+                        onClick={() => setIsCreateSprintOpen(true)}
+                        className="text-xs gap-1.5"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Create Sprint
+                      </Button>
+                      {sprints.length > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            sprintActionMutation.mutate({
+                              sprintId: sprints[0]._id,
+                              action: "start",
+                            })
+                          }
+                          className="text-xs gap-1.5"
+                        >
+                          <Play className="h-3.5 w-3.5 text-emerald-500" />
+                          Start {sprints[0].name}
+                        </Button>
+                      )}
+                    </div>
+                  </Card>
+                )}
+
+                {/* Backlog Section */}
+                <Card className="p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                        <ListTodo className="h-4 w-4 text-primary" />
+                        Project Backlog ({backlogTasks.length})
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Unscheduled tasks ready for prioritization and sprint planning.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsCreateSprintOpen(true)}
+                        className="text-xs h-8 gap-1.5"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        New Sprint
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {backlogTasks.length === 0 ? (
+                      <div className="text-center py-8 text-xs text-muted-foreground">
+                        Backlog is empty. Click "+ Add Task" to create new backlog items.
+                      </div>
+                    ) : (
+                      backlogTasks.map((t: any) => (
+                        <div
+                          key={t._id}
+                          className="p-3 rounded-xl border bg-card hover:border-primary/50 transition-all flex items-center justify-between gap-3 text-xs shadow-2xs"
+                        >
+                          <div
+                            onClick={() => handleOpenTask(t._id)}
+                            className="flex items-center gap-2.5 truncate cursor-pointer flex-1"
+                          >
+                            <Badge variant="outline" className="font-mono text-[10px]">
+                              {t.issueType || "task"}
+                            </Badge>
+                            <span className="font-semibold truncate">{t.title}</span>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            {t.storyPoints > 0 && (
+                              <Badge variant="secondary" className="font-mono text-[10px]">
+                                {t.storyPoints} pts
+                              </Badge>
+                            )}
+                            <Badge
+                              variant={
+                                t.priority === "Urgent" || t.priority === "High"
+                                  ? "destructive"
+                                  : "secondary"
+                              }
+                              className="text-[10px]"
+                            >
+                              {t.priority}
+                            </Badge>
+                            <Badge variant="outline" className="text-[10px]">
+                              {t.status}
+                            </Badge>
+                            {activeSprint && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  assignTaskSprintMutation.mutate({
+                                    taskId: t._id,
+                                    sprintId: activeSprint._id,
+                                  })
+                                }
+                                className="h-6 text-[10px] text-primary"
+                              >
+                                + Move to Sprint
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </Card>
+              </div>
+            );
+          })()}
+        </TabsContent>
+
+        {/* Tab: Project Docs & Wiki */}
+        <TabsContent value="docs" className="space-y-4 pt-2">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Select value={docCategoryFilter} onValueChange={setDocCategoryFilter}>
+                <SelectTrigger className="w-40 text-xs h-9">
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Categories</SelectItem>
+                  <SelectItem value="PRD">PRD</SelectItem>
+                  <SelectItem value="Architecture">Architecture</SelectItem>
+                  <SelectItem value="Meeting Notes">Meeting Notes</SelectItem>
+                  <SelectItem value="General">General</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button
+              size="sm"
+              onClick={() => setIsCreateDocOpen(true)}
+              className="text-xs h-9 gap-1.5"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New Document
+            </Button>
+          </div>
+
+          {/* Docs Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {docs
+              .filter((d: any) =>
+                docCategoryFilter === "ALL" ? true : d.category === docCategoryFilter
+              )
+              .map((doc: any) => (
+                <Card
+                  key={doc._id}
+                  onClick={() => setViewingDoc(doc)}
+                  className="p-4 space-y-3 cursor-pointer hover:border-primary/50 transition-all shadow-2xs group flex flex-col justify-between"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Badge variant="secondary" className="text-[10px]">
+                        {doc.category}
+                      </Badge>
+                      <span className="text-[10px] text-muted-foreground">
+                        {format(new Date(doc.updatedAt || doc.createdAt), "MMM d")}
+                      </span>
+                    </div>
+                    <h4 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">
+                      {doc.title}
+                    </h4>
+                    <p className="text-xs text-muted-foreground line-clamp-3 font-mono">
+                      {doc.content || "Empty document"}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t text-[11px] text-muted-foreground">
+                    <div className="flex items-center gap-1.5 truncate">
+                      <Avatar className="h-4 w-4">
+                        <AvatarFallback className="text-[8px]">
+                          {doc.createdBy?.name ? doc.createdBy.name[0] : "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="truncate">{doc.createdBy?.name || "Author"}</span>
+                    </div>
+                    <span className="text-primary text-xs group-hover:underline">Read Doc</span>
+                  </div>
+                </Card>
+              ))}
+
+            {docs.length === 0 && (
+              <Card className="col-span-full p-8 text-center text-xs text-muted-foreground space-y-3">
+                <BookOpen className="h-8 w-8 mx-auto text-muted-foreground" />
+                <p className="font-semibold text-foreground text-sm">No documents in project wiki</p>
+                <p>Create PRDs, architecture guides, and sprint notes to centralize knowledge.</p>
+                <Button
+                  size="sm"
+                  onClick={() => setIsCreateDocOpen(true)}
+                  className="text-xs gap-1.5"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Create First Document
+                </Button>
+              </Card>
+            )}
+          </div>
         </TabsContent>
 
         {/* Tab 7: Activity */}
@@ -803,6 +1303,156 @@ export default function ProjectDetailPage() {
         onConfirm={() => deleteProjectMutation.mutate()}
         confirmText="Delete Project"
       />
+
+      {/* Create Sprint Dialog */}
+      <Dialog open={isCreateSprintOpen} onOpenChange={setIsCreateSprintOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold">Create New Sprint</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Define a sprint cycle with goals to focus team velocity.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Sprint Name</Label>
+              <Input
+                placeholder="e.g. Sprint 24 - Core API & Auth"
+                value={newSprintName}
+                onChange={(e) => setNewSprintName(e.target.value)}
+                className="text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Sprint Goal</Label>
+              <Textarea
+                placeholder="What is the key objective of this sprint?"
+                value={newSprintGoal}
+                onChange={(e) => setNewSprintGoal(e.target.value)}
+                rows={3}
+                className="text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter className="pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCreateSprintOpen(false)}
+              className="text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={!newSprintName.trim() || createSprintMutation.isPending}
+              onClick={() => createSprintMutation.mutate()}
+              className="text-xs"
+            >
+              {createSprintMutation.isPending ? "Creating..." : "Create Sprint"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Document Dialog */}
+      <Dialog open={isCreateDocOpen} onOpenChange={setIsCreateDocOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold">New Project Document</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Add a PRD, Architecture Spec, or Meeting Notes to the project wiki.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-2 space-y-1">
+                <Label className="text-xs font-semibold">Title</Label>
+                <Input
+                  placeholder="Document title..."
+                  value={newDocTitle}
+                  onChange={(e) => setNewDocTitle(e.target.value)}
+                  className="text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Category</Label>
+                <Select value={newDocCategory} onValueChange={setNewDocCategory}>
+                  <SelectTrigger className="text-xs h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PRD">PRD</SelectItem>
+                    <SelectItem value="Architecture">Architecture</SelectItem>
+                    <SelectItem value="Meeting Notes">Meeting Notes</SelectItem>
+                    <SelectItem value="General">General</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Content (Markdown supported)</Label>
+              <Textarea
+                placeholder="Write documentation, technical specs, or meeting decisions here..."
+                value={newDocContent}
+                onChange={(e) => setNewDocContent(e.target.value)}
+                rows={8}
+                className="text-xs font-mono"
+              />
+            </div>
+          </div>
+          <DialogFooter className="pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCreateDocOpen(false)}
+              className="text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={!newDocTitle.trim() || createDocMutation.isPending}
+              onClick={() => createDocMutation.mutate()}
+              className="text-xs"
+            >
+              {createDocMutation.isPending ? "Saving..." : "Save Document"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Document Dialog */}
+      <Dialog open={Boolean(viewingDoc)} onOpenChange={(open) => !open && setViewingDoc(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="text-xs">
+                {viewingDoc?.category}
+              </Badge>
+              <DialogTitle className="text-lg font-bold">{viewingDoc?.title}</DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground">
+              By {viewingDoc?.createdBy?.name || "Team Member"} • Last updated{" "}
+              {viewingDoc?.updatedAt ? format(new Date(viewingDoc.updatedAt), "MMM d, yyyy") : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-4 rounded-xl bg-muted/20 border font-mono text-xs whitespace-pre-wrap leading-relaxed">
+            {viewingDoc?.content || "No content."}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setViewingDoc(null)}
+              className="text-xs"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

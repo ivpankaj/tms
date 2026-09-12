@@ -419,7 +419,69 @@ const TeamSchema = new Schema<ITeam>(
   { timestamps: true }
 );
 
-// 10c. Comment
+// 10c. Sprint
+export interface ISprint extends Document, BaseEntity {
+  projectId: mongoose.Types.ObjectId;
+  name: string;
+  goal?: string;
+  startDate?: Date;
+  endDate?: Date;
+  status: "planning" | "active" | "completed";
+  velocity: number;
+}
+
+const SprintSchema = new Schema<ISprint>(
+  {
+    organizationId: { type: Schema.Types.ObjectId, ref: "Organization", required: true, index: true },
+    projectId: { type: Schema.Types.ObjectId, ref: "Project", required: true, index: true },
+    name: { type: String, required: true },
+    goal: { type: String },
+    startDate: { type: Date },
+    endDate: { type: Date },
+    status: {
+      type: String,
+      enum: ["planning", "active", "completed"],
+      default: "planning",
+      index: true,
+    },
+    velocity: { type: Number, default: 0 },
+    isDeleted: { type: Boolean, default: false, index: true },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User" },
+  },
+  { timestamps: true }
+);
+
+// 10d. ProjectDoc (Wiki / Knowledge Base)
+export interface IProjectDoc extends Document, BaseEntity {
+  projectId: mongoose.Types.ObjectId;
+  title: string;
+  content: string;
+  category: "PRD" | "Architecture" | "Meeting Notes" | "General";
+  tags: string[];
+  updatedBy?: mongoose.Types.ObjectId;
+}
+
+const ProjectDocSchema = new Schema<IProjectDoc>(
+  {
+    organizationId: { type: Schema.Types.ObjectId, ref: "Organization", required: true, index: true },
+    projectId: { type: Schema.Types.ObjectId, ref: "Project", required: true, index: true },
+    title: { type: String, required: true },
+    content: { type: String, default: "" },
+    category: {
+      type: String,
+      enum: ["PRD", "Architecture", "Meeting Notes", "General"],
+      default: "General",
+      index: true,
+    },
+    tags: [{ type: String }],
+    updatedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    isDeleted: { type: Boolean, default: false, index: true },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User" },
+  },
+  { timestamps: true }
+);
+
+// 10e. Comment
 export interface IComment extends Document, BaseEntity {
   taskId: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
@@ -468,6 +530,14 @@ export interface ITaskAttachment {
   createdAt?: Date;
 }
 
+export interface ITaskTimeLog {
+  _id?: mongoose.Types.ObjectId | string;
+  userId?: mongoose.Types.ObjectId;
+  hours: number;
+  description?: string;
+  loggedAt: Date;
+}
+
 export interface ITask extends Document, BaseEntity {
   title: string;
   description?: string;
@@ -477,6 +547,10 @@ export interface ITask extends Document, BaseEntity {
   dueDate?: Date;
   priority: "No Priority" | "Low" | "Medium" | "High" | "Urgent";
   status: "Backlog" | "Todo" | "In Progress" | "In Review" | "Done" | "Cancelled" | "Completed";
+  issueType: "task" | "bug" | "feature" | "story" | "epic";
+  storyPoints: number;
+  sprintId?: mongoose.Types.ObjectId;
+  timeLogs: ITaskTimeLog[];
   assignedTo?: mongoose.Types.ObjectId;
   reporterId?: mongoose.Types.ObjectId;
   labels: string[];
@@ -518,6 +592,22 @@ const TaskSchema = new Schema<ITask>(
       default: "Todo",
       index: true,
     },
+    issueType: {
+      type: String,
+      enum: ["task", "bug", "feature", "story", "epic"],
+      default: "task",
+      index: true,
+    },
+    storyPoints: { type: Number, default: 0 },
+    sprintId: { type: Schema.Types.ObjectId, ref: "Sprint", index: true },
+    timeLogs: [
+      {
+        userId: { type: Schema.Types.ObjectId, ref: "User" },
+        hours: { type: Number, required: true },
+        description: { type: String },
+        loggedAt: { type: Date, default: Date.now },
+      },
+    ],
     assignedTo: { type: Schema.Types.ObjectId, ref: "User", index: true },
     reporterId: { type: Schema.Types.ObjectId, ref: "User" },
     labels: [{ type: String, index: true }],
@@ -1048,3 +1138,9 @@ export const Team: Model<ITeam> =
 
 export const Comment: Model<IComment> =
   mongoose.models.Comment || mongoose.model<IComment>("Comment", CommentSchema);
+
+export const Sprint: Model<ISprint> =
+  mongoose.models.Sprint || mongoose.model<ISprint>("Sprint", SprintSchema);
+
+export const ProjectDoc: Model<IProjectDoc> =
+  mongoose.models.ProjectDoc || mongoose.model<IProjectDoc>("ProjectDoc", ProjectDocSchema);

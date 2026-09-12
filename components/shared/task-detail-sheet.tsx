@@ -43,7 +43,21 @@ import {
   FolderGit2,
   Users,
   AlertCircle,
+  Bug,
+  Sparkles,
+  Bookmark,
+  Zap,
+  CheckSquare,
+  Timer,
 } from "lucide-react";
+
+const ISSUE_TYPES = [
+  { id: "task", label: "Task", icon: CheckSquare, color: "text-blue-500" },
+  { id: "bug", label: "Bug", icon: Bug, color: "text-red-500" },
+  { id: "feature", label: "Feature", icon: Sparkles, color: "text-emerald-500" },
+  { id: "story", label: "Story", icon: Bookmark, color: "text-purple-500" },
+  { id: "epic", label: "Epic", icon: Zap, color: "text-amber-500" },
+];
 
 interface TaskDetailSheetProps {
   taskId: string | null;
@@ -68,6 +82,9 @@ export function TaskDetailSheet({
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
   const [newChecklistTitle, setNewChecklistTitle] = useState("");
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [logHours, setLogHours] = useState("");
+  const [logDesc, setLogDesc] = useState("");
+  const [showLogForm, setShowLogForm] = useState(false);
 
   // 1. Fetch Task Details
   const {
@@ -129,6 +146,45 @@ export function TaskDetailSheet({
       return json.success ? json.data : [];
     },
     enabled: open,
+  });
+
+  // 6. Fetch Timelogs
+  const { data: timelogsData } = useQuery({
+    queryKey: ["task-timelogs", taskId],
+    queryFn: async () => {
+      if (!taskId) return null;
+      const res = await fetch(`/api/v1/tasks/${taskId}/timelogs`);
+      const json = await res.json();
+      return json.success ? json.data : null;
+    },
+    enabled: Boolean(taskId) && open,
+  });
+
+  // Log Time Mutation
+  const logTimeMutation = useMutation({
+    mutationFn: async () => {
+      const hours = parseFloat(logHours);
+      if (isNaN(hours) || hours <= 0) throw new Error("Enter valid hours");
+      const res = await fetch(`/api/v1/tasks/${taskId}/timelogs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hours, description: logDesc }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error?.message || "Failed to log time");
+      return json.data;
+    },
+    onSuccess: () => {
+      toast.success("Work hours logged successfully");
+      queryClient.invalidateQueries({ queryKey: ["task", taskId] });
+      queryClient.invalidateQueries({ queryKey: ["task-timelogs", taskId] });
+      queryClient.invalidateQueries({ queryKey: ["tasks-list"] });
+      queryClient.invalidateQueries({ queryKey: ["workload"] });
+      setLogHours("");
+      setLogDesc("");
+      setShowLogForm(false);
+    },
+    onError: (err: any) => toast.error(err.message),
   });
 
   // Sync state when task loads
@@ -328,7 +384,35 @@ export function TaskDetailSheet({
           ) : (
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               {/* Quick Status / Priority / Assignee Control Row */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-xl bg-muted/40 border text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 p-3 rounded-xl bg-muted/40 border text-xs">
+                {/* Issue Type */}
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                    Type
+                  </span>
+                  <Select
+                    value={task.issueType || "task"}
+                    onValueChange={(val) => updateTaskMutation.mutate({ issueType: val })}
+                  >
+                    <SelectTrigger className="h-7 text-xs font-semibold">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ISSUE_TYPES.map((t) => {
+                        const Icon = t.icon;
+                        return (
+                          <SelectItem key={t.id} value={t.id}>
+                            <div className="flex items-center gap-1.5">
+                              <Icon className={`h-3 w-3 ${t.color}`} />
+                              <span>{t.label}</span>
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* Status */}
                 <div className="space-y-1">
                   <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
@@ -369,6 +453,30 @@ export function TaskDetailSheet({
                       <SelectItem value="Medium">Medium</SelectItem>
                       <SelectItem value="Low">Low</SelectItem>
                       <SelectItem value="No Priority">No Priority</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Story Points */}
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                    Points
+                  </span>
+                  <Select
+                    value={String(task.storyPoints || 0)}
+                    onValueChange={(val) => updateTaskMutation.mutate({ storyPoints: Number(val) })}
+                  >
+                    <SelectTrigger className="h-7 text-xs font-semibold">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">0 pts</SelectItem>
+                      <SelectItem value="1">1 pt</SelectItem>
+                      <SelectItem value="2">2 pts</SelectItem>
+                      <SelectItem value="3">3 pts</SelectItem>
+                      <SelectItem value="5">5 pts</SelectItem>
+                      <SelectItem value="8">8 pts</SelectItem>
+                      <SelectItem value="13">13 pts</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -470,6 +578,15 @@ export function TaskDetailSheet({
                       </span>
                     )}
                   </TabsTrigger>
+                  <TabsTrigger value="timelogs" className="text-xs flex items-center gap-1.5">
+                    <Timer className="h-3 w-3 text-primary" />
+                    Time Logs
+                    {task.timeLogs && task.timeLogs.length > 0 && (
+                      <span className="text-[10px] bg-muted px-1.5 py-0.2 rounded-full font-mono">
+                        {task.timeLogs.length}
+                      </span>
+                    )}
+                  </TabsTrigger>
                   <TabsTrigger value="activity" className="text-xs">
                     Activity
                   </TabsTrigger>
@@ -512,14 +629,90 @@ export function TaskDetailSheet({
                       </p>
                     </div>
 
-                    <div className="p-3 bg-muted/20 rounded-lg border space-y-1">
-                      <span className="text-muted-foreground text-[11px]">Estimate</span>
-                      <p className="font-semibold text-foreground">
-                        {task.estimatedHours ? `${task.estimatedHours}h estimated` : "No estimate"}
-                      </p>
+                    <div className="p-3 bg-muted/20 rounded-lg border space-y-1 col-span-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground text-[11px] flex items-center gap-1.5">
+                          <Timer className="h-3 w-3 text-primary" />
+                          Time Tracking
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowLogForm(!showLogForm)}
+                          className="h-6 text-[10px] px-2 text-primary hover:bg-primary/10"
+                        >
+                          + Log Work
+                        </Button>
+                      </div>
+
+                      <div className="space-y-1.5 pt-1">
+                        <div className="flex items-center justify-between text-xs font-semibold">
+                          <span>{task.actualHours || 0}h logged</span>
+                          <span className="text-muted-foreground font-mono">
+                            {task.estimatedHours ? `${task.estimatedHours}h estimate` : "No estimate"}
+                          </span>
+                        </div>
+                        {task.estimatedHours > 0 && (
+                          <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className={`h-full transition-all ${
+                                (task.actualHours || 0) > task.estimatedHours
+                                  ? "bg-amber-500"
+                                  : "bg-primary"
+                              }`}
+                              style={{
+                                width: `${Math.min(
+                                  Math.round(((task.actualHours || 0) / task.estimatedHours) * 100),
+                                  100
+                                )}%`,
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {showLogForm && (
+                        <div className="p-2.5 rounded-md border bg-card space-y-2 mt-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <Input
+                              type="number"
+                              step="0.25"
+                              min="0"
+                              placeholder="Hours (e.g. 1.5)"
+                              value={logHours}
+                              onChange={(e) => setLogHours(e.target.value)}
+                              className="h-7 text-xs"
+                            />
+                            <Input
+                              placeholder="Description of work..."
+                              value={logDesc}
+                              onChange={(e) => setLogDesc(e.target.value)}
+                              className="h-7 text-xs"
+                            />
+                          </div>
+                          <div className="flex justify-end gap-1.5">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowLogForm(false)}
+                              className="h-6 text-[10px]"
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              disabled={logTimeMutation.isPending || !logHours}
+                              onClick={() => logTimeMutation.mutate()}
+                              className="h-6 text-[10px]"
+                            >
+                              {logTimeMutation.isPending ? "Logging..." : "Save Worklog"}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    <div className="p-3 bg-muted/20 rounded-lg border space-y-1">
+                    <div className="p-3 bg-muted/20 rounded-lg border space-y-1 col-span-2">
                       <span className="text-muted-foreground text-[11px]">Created</span>
                       <p className="font-semibold text-foreground">
                         {format(new Date(task.createdAt), "MMM d, yyyy")}
@@ -720,6 +913,104 @@ export function TaskDetailSheet({
                         Comment
                       </Button>
                     </div>
+                  </div>
+                </TabsContent>
+
+                {/* Tab: Time Tracking / Worklogs */}
+                <TabsContent value="timelogs" className="space-y-4 pt-4">
+                  <div className="p-4 rounded-xl border bg-muted/20 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <h4 className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                          <Timer className="h-4 w-4 text-primary" />
+                          Worklog Time Tracker
+                        </h4>
+                        <p className="text-xs text-muted-foreground">
+                          Track billable and development time spent on this issue.
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-lg font-bold font-mono text-foreground">
+                          {task.actualHours || 0}h
+                        </span>
+                        <span className="text-xs text-muted-foreground block">
+                          of {task.estimatedHours ? `${task.estimatedHours}h` : "∞"} estimated
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Quick Log Form */}
+                    <div className="pt-2 border-t flex flex-col sm:flex-row items-center gap-2">
+                      <Input
+                        type="number"
+                        step="0.25"
+                        min="0"
+                        placeholder="Hours (e.g. 2.5)"
+                        value={logHours}
+                        onChange={(e) => setLogHours(e.target.value)}
+                        className="h-8 text-xs sm:w-32"
+                      />
+                      <Input
+                        placeholder="Description of work done..."
+                        value={logDesc}
+                        onChange={(e) => setLogDesc(e.target.value)}
+                        className="h-8 text-xs flex-1"
+                      />
+                      <Button
+                        size="sm"
+                        disabled={logTimeMutation.isPending || !logHours}
+                        onClick={() => logTimeMutation.mutate()}
+                        className="h-8 text-xs gap-1 shrink-0"
+                      >
+                        {logTimeMutation.isPending ? "Logging..." : "Log Work"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Worklogs List */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Worklog History
+                    </Label>
+                    {!task.timeLogs || task.timeLogs.length === 0 ? (
+                      <div className="text-center py-6 text-xs text-muted-foreground border rounded-lg border-dashed">
+                        No time logged on this task yet. Enter hours above to log work.
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                        {task.timeLogs.map((log: any, idx: number) => (
+                          <div
+                            key={idx}
+                            className="flex items-center justify-between p-2.5 rounded-lg border bg-card text-xs"
+                          >
+                            <div className="flex items-center gap-2.5 truncate">
+                              <Avatar className="h-6 w-6">
+                                <AvatarFallback className="text-[9px] bg-primary/10 text-primary">
+                                  {log.userId?.name ? log.userId.name[0] : "U"}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="truncate">
+                                <p className="font-semibold truncate">
+                                  {log.userId?.name || "Team Member"}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground truncate">
+                                  {log.description || "Logged development work"}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0">
+                              <Badge variant="outline" className="font-mono text-xs font-bold">
+                                +{log.hours}h
+                              </Badge>
+                              <span className="text-[10px] text-muted-foreground block">
+                                {format(new Date(log.loggedAt || Date.now()), "MMM d, HH:mm")}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </TabsContent>
 

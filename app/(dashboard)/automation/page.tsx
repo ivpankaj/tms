@@ -40,14 +40,16 @@ import {
   Plus,
   ArrowRight,
   Trash2,
-  Mail,
-  CheckSquare,
-  UserCheck,
   Bell,
   PlayCircle,
-  GitFork,
   Sliders,
   Sparkles,
+  Layers,
+  Bug,
+  CheckCircle2,
+  Clock,
+  UserCheck,
+  ListChecks,
 } from "lucide-react";
 
 interface WorkflowItem {
@@ -61,11 +63,44 @@ interface WorkflowItem {
     config?: Record<string, any>;
   };
   actions: Array<{
-    type: "send_email" | "create_task" | "assign_owner" | "notify_team" | "update_field";
+    type: "assign_lead" | "notify_team" | "update_status" | "add_checklist" | "send_email";
     config: Record<string, any>;
   }>;
   createdAt: string;
 }
+
+const AUTOMATION_RECIPES = [
+  {
+    name: "⚡ Auto-Assign Urgent Bugs to Tech Lead",
+    desc: "When a new Bug is created with Urgent priority, immediately route to Squad Lead.",
+    trigger: "task.created",
+    field: "priority",
+    operator: "equals",
+    val: "Urgent",
+    action: "assign_lead",
+    actionDetail: "Engineering Squad Lead",
+  },
+  {
+    name: "🔔 Notify QA Squad when Task is In Review",
+    desc: "When task status moves to 'In Review', dispatch notification to testing team.",
+    trigger: "task.status_changed",
+    field: "status",
+    operator: "equals",
+    val: "In Review",
+    action: "notify_team",
+    actionDetail: "QA Testing Squad",
+  },
+  {
+    name: "🛡️ Auto-Attach Security Checklist to Epics",
+    desc: "When an Epic is scheduled, automatically inject security & compliance checks.",
+    trigger: "task.created",
+    field: "issueType",
+    operator: "equals",
+    val: "epic",
+    action: "add_checklist",
+    actionDetail: "Security & OWASP Sign-off",
+  },
+];
 
 export default function AutomationPage() {
   const { authFetch } = useAuth();
@@ -77,12 +112,12 @@ export default function AutomationPage() {
   // Form State
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [triggerEvent, setTriggerEvent] = useState("lead.created");
-  const [conditionField, setConditionField] = useState("score");
-  const [conditionOperator, setConditionOperator] = useState("greater_than");
-  const [conditionValue, setConditionValue] = useState("50");
-  const [actionType, setActionType] = useState<string>("assign_owner");
-  const [actionDetail, setActionDetail] = useState("Round-Robin Sales Reps");
+  const [triggerEvent, setTriggerEvent] = useState("task.created");
+  const [conditionField, setConditionField] = useState("priority");
+  const [conditionOperator, setConditionOperator] = useState("equals");
+  const [conditionValue, setConditionValue] = useState("Urgent");
+  const [actionType, setActionType] = useState<string>("assign_lead");
+  const [actionDetail, setActionDetail] = useState("Engineering Lead");
 
   // Fetch Workflows
   const { data: workflows = [], isLoading } = useQuery<WorkflowItem[]>({
@@ -103,12 +138,12 @@ export default function AutomationPage() {
         body: JSON.stringify({ isActive }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message || "Failed to update workflow");
+      if (!res.ok) throw new Error(json.error?.message || "Failed to update rule");
       return json.data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
-      toast.success(`Workflow ${data.isActive ? "activated" : "paused"}`);
+      toast.success(`Rule ${data.isActive ? "activated" : "paused"}`);
     },
     onError: (err: any) => {
       toast.error(err.message);
@@ -124,12 +159,12 @@ export default function AutomationPage() {
         body: JSON.stringify(payload),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message || "Failed to create workflow");
+      if (!res.ok) throw new Error(json.error?.message || "Failed to create rule");
       return json.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
-      toast.success("Workflow rule created successfully");
+      toast.success("Automation rule created");
       setIsCreateOpen(false);
       resetForm();
     },
@@ -145,12 +180,12 @@ export default function AutomationPage() {
         method: "DELETE",
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message || "Failed to delete workflow");
+      if (!res.ok) throw new Error(json.error?.message || "Failed to delete rule");
       return json.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
-      toast.success("Workflow removed");
+      toast.success("Automation rule deleted");
       setWorkflowToDelete(null);
     },
     onError: (err: any) => {
@@ -161,18 +196,18 @@ export default function AutomationPage() {
   const resetForm = () => {
     setName("");
     setDescription("");
-    setTriggerEvent("lead.created");
-    setConditionField("score");
-    setConditionOperator("greater_than");
-    setConditionValue("50");
-    setActionType("assign_owner");
-    setActionDetail("Round-Robin Sales Reps");
+    setTriggerEvent("task.created");
+    setConditionField("priority");
+    setConditionOperator("equals");
+    setConditionValue("Urgent");
+    setActionType("assign_lead");
+    setActionDetail("Engineering Lead");
   };
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      toast.error("Workflow name is required");
+      toast.error("Rule name is required");
       return;
     }
 
@@ -201,197 +236,201 @@ export default function AutomationPage() {
     });
   };
 
+  const applyRecipe = (recipe: (typeof AUTOMATION_RECIPES)[0]) => {
+    setName(recipe.name.replace(/^[^\w\s]+/, "").trim());
+    setDescription(recipe.desc);
+    setTriggerEvent(recipe.trigger);
+    setConditionField(recipe.field);
+    setConditionOperator(recipe.operator);
+    setConditionValue(recipe.val);
+    setActionType(recipe.action);
+    setActionDetail(recipe.actionDetail);
+    setIsCreateOpen(true);
+  };
+
   const getTriggerLabel = (event: string) => {
     switch (event) {
-      case "lead.created":
-        return "When New Lead Created";
-      case "deal.stage_changed":
-        return "When Deal Stage Changes";
-      case "ticket.created":
-        return "When Support Ticket Logged";
-      case "contact.created":
-        return "When Contact Captured";
+      case "task.created":
+        return "When New Task / Issue Created";
+      case "task.status_changed":
+        return "When Task Status Changes";
+      case "task.priority_urgent":
+        return "When Priority Set to Urgent";
+      case "task.overdue":
+        return "When Task Passes Due Date";
+      case "sprint.started":
+        return "When Sprint Starts";
+      case "sprint.completed":
+        return "When Sprint Completes";
       default:
-        return event;
+        return event.replace(".", " ");
     }
   };
 
   const getActionIcon = (type: string) => {
     switch (type) {
-      case "assign_owner":
-        return <UserCheck className="h-4 w-4 text-blue-500" />;
-      case "send_email":
-        return <Mail className="h-4 w-4 text-emerald-500" />;
-      case "create_task":
-        return <CheckSquare className="h-4 w-4 text-purple-500" />;
+      case "assign_lead":
+        return <UserCheck className="h-3.5 w-3.5 text-blue-500" />;
       case "notify_team":
-        return <Bell className="h-4 w-4 text-amber-500" />;
+        return <Bell className="h-3.5 w-3.5 text-amber-500" />;
+      case "update_status":
+        return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />;
+      case "add_checklist":
+        return <ListChecks className="h-3.5 w-3.5 text-purple-500" />;
       default:
-        return <Zap className="h-4 w-4 text-blue-500" />;
+        return <Zap className="h-3.5 w-3.5 text-primary" />;
     }
   };
 
-  const activeCount = workflows.filter((w) => w.isActive).length;
-
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* HEADER */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Automation & Workflows</h1>
-          <p className="text-sm text-muted-foreground">
-            Configure event-driven triggers, conditional filters, and automated actions across your CRM pipeline.
+          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
+            <Zap className="h-6 w-6 text-primary" />
+            Project Management Automations
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            No-code visual rules to auto-assign tasks, route urgent bugs, and notify squads on status updates.
           </p>
         </div>
-        <Button className="gap-2" onClick={() => setIsCreateOpen(true)}>
+        <Button onClick={() => setIsCreateOpen(true)} className="gap-2 shrink-0">
           <Plus className="h-4 w-4" />
           Create Rule
         </Button>
       </div>
 
-      {/* KPI Overview */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Active Rules</CardTitle>
-            <Zap className="h-4 w-4 text-emerald-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{activeCount}</div>
-            <p className="text-xs text-muted-foreground mt-1">Currently evaluating tenant events</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Defined Workflows</CardTitle>
-            <GitFork className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{workflows.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">Installed triggers and logic pipelines</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Execution Engine</CardTitle>
-            <Sparkles className="h-4 w-4 text-purple-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-emerald-600">Live (0ms Latency)</div>
-            <p className="text-xs text-muted-foreground mt-1">Real-time async event dispatching</p>
-          </CardContent>
-        </Card>
+      {/* 1-CLICK AUTOMATION RECIPES */}
+      <div className="space-y-3">
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <Sparkles className="h-3.5 w-3.5 text-primary" />
+          Recommended 1-Click Recipes
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {AUTOMATION_RECIPES.map((recipe) => (
+            <Card
+              key={recipe.name}
+              onClick={() => applyRecipe(recipe)}
+              className="p-4 space-y-2 cursor-pointer hover:border-primary/50 transition-all shadow-2xs border bg-card/60 hover:bg-card"
+            >
+              <h4 className="font-bold text-sm text-foreground">{recipe.name}</h4>
+              <p className="text-xs text-muted-foreground line-clamp-2">{recipe.desc}</p>
+              <span className="text-[11px] font-semibold text-primary block pt-1">
+                + Use this recipe
+              </span>
+            </Card>
+          ))}
+        </div>
       </div>
 
-      {/* Workflows List */}
-      <div className="space-y-4">
-        <h2 className="text-base font-semibold">Configured Automation Rules</h2>
+      {/* ACTIVE WORKFLOWS LIST */}
+      <div className="space-y-3">
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Configured Rules ({workflows.length})
+        </h3>
 
         {isLoading ? (
           <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-28 w-full" />
-            ))}
+            <Skeleton className="h-24 w-full rounded-xl" />
+            <Skeleton className="h-24 w-full rounded-xl" />
           </div>
         ) : workflows.length === 0 ? (
           <EmptyState
             icon={Zap}
-            title="No automated workflows configured"
-            description="Create event-driven workflows to auto-assign leads, generate onboarding tasks, and dispatch email alerts."
+            title="No automated rules configured"
+            description="Create event-driven workflows to auto-assign tasks, enforce QA sign-offs, and dispatch notifications."
             actionLabel="Create Rule"
             onAction={() => setIsCreateOpen(true)}
           />
         ) : (
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-3">
             {workflows.map((wf) => (
-              <Card key={wf._id} className="transition-all hover:border-muted-foreground/30">
-                <CardHeader className="pb-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <CardTitle className="text-base font-semibold">{wf.name}</CardTitle>
-                        {wf.isActive ? (
-                          <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200">
-                            Active
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary">Paused</Badge>
-                        )}
-                      </div>
-                      {wf.description && (
-                        <CardDescription className="text-xs">{wf.description}</CardDescription>
+              <Card key={wf._id} className="p-4 shadow-2xs space-y-3 transition-all hover:border-muted-foreground/30">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-base font-semibold">{wf.name}</h4>
+                      {wf.isActive ? (
+                        <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200 text-[10px]">
+                          Active
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-[10px]">
+                          Paused
+                        </Badge>
                       )}
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">
-                          {wf.isActive ? "Enabled" : "Disabled"}
-                        </span>
-                        <Switch
-                          checked={wf.isActive}
-                          onCheckedChange={(checked) =>
-                            toggleActiveMutation.mutate({ id: wf._id, isActive: checked })
-                          }
-                        />
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => setWorkflowToDelete(wf._id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0 pb-4">
-                  {/* Flow Diagram Representation */}
-                  <div className="flex flex-wrap items-center gap-2 text-xs bg-muted/30 p-3 rounded-lg border">
-                    {/* Trigger */}
-                    <div className="flex items-center gap-1.5 font-medium bg-background px-2.5 py-1.5 rounded-md border shadow-2xs">
-                      <PlayCircle className="h-3.5 w-3.5 text-blue-500" />
-                      <span>{getTriggerLabel(wf.trigger?.event || "event")}</span>
-                    </div>
-
-                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-
-                    {/* Condition */}
-                    {wf.trigger?.conditions && wf.trigger.conditions.length > 0 ? (
-                      <div className="flex items-center gap-1.5 font-medium bg-background px-2.5 py-1.5 rounded-md border shadow-2xs">
-                        <Sliders className="h-3.5 w-3.5 text-purple-500" />
-                        <span>
-                          If {wf.trigger.conditions[0].field}{" "}
-                          {wf.trigger.conditions[0].operator.replace("_", " ")}{" "}
-                          "{wf.trigger.conditions[0].value}"
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5 font-medium bg-background px-2.5 py-1.5 rounded-md border shadow-2xs text-muted-foreground">
-                        <span>Always trigger</span>
-                      </div>
+                    {wf.description && (
+                      <p className="text-xs text-muted-foreground">{wf.description}</p>
                     )}
-
-                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-
-                    {/* Actions */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      {wf.actions.map((act, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center gap-1.5 font-medium bg-background px-2.5 py-1.5 rounded-md border shadow-2xs text-foreground"
-                        >
-                          {getActionIcon(act.type)}
-                          <span className="capitalize">
-                            {act.type.replace("_", " ")}: {act.config?.detail || "Execute"}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
                   </div>
-                </CardContent>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {wf.isActive ? "Enabled" : "Disabled"}
+                      </span>
+                      <Switch
+                        checked={wf.isActive}
+                        onCheckedChange={(checked) =>
+                          toggleActiveMutation.mutate({ id: wf._id, isActive: checked })
+                        }
+                      />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      onClick={() => setWorkflowToDelete(wf._id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Flow Diagram Representation */}
+                <div className="flex flex-wrap items-center gap-2 text-xs bg-muted/30 p-2.5 rounded-lg border">
+                  {/* Trigger */}
+                  <div className="flex items-center gap-1.5 font-medium bg-background px-2.5 py-1 rounded-md border shadow-2xs">
+                    <PlayCircle className="h-3.5 w-3.5 text-blue-500" />
+                    <span>{getTriggerLabel(wf.trigger?.event || "event")}</span>
+                  </div>
+
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+
+                  {/* Condition */}
+                  {wf.trigger?.conditions && wf.trigger.conditions.length > 0 ? (
+                    <div className="flex items-center gap-1.5 font-medium bg-background px-2.5 py-1 rounded-md border shadow-2xs">
+                      <Sliders className="h-3.5 w-3.5 text-purple-500" />
+                      <span>
+                        If {wf.trigger.conditions[0].field}{" "}
+                        {wf.trigger.conditions[0].operator.replace("_", " ")}{" "}
+                        "{wf.trigger.conditions[0].value}"
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 font-medium bg-background px-2.5 py-1 rounded-md border shadow-2xs text-muted-foreground">
+                      <span>Always trigger</span>
+                    </div>
+                  )}
+
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+
+                  {/* Actions */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {wf.actions.map((act, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center gap-1.5 font-medium bg-background px-2.5 py-1 rounded-md border shadow-2xs text-foreground"
+                      >
+                        {getActionIcon(act.type)}
+                        <span className="capitalize">
+                          {act.type.replace("_", " ")}: {act.config?.detail || "Execute"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </Card>
             ))}
           </div>
@@ -402,82 +441,86 @@ export default function AutomationPage() {
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>Create Automation Rule</DialogTitle>
-            <DialogDescription>
-              Chain a trigger event, filtering condition, and execution action.
+            <DialogTitle className="text-lg font-bold">Create Automation Rule</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Chain a project management trigger event, condition filter, and automated action.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateSubmit} className="space-y-4 py-2">
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Workflow Name
+                Rule Name
               </label>
               <Input
-                placeholder="e.g. Hot Lead Instant Round-Robin Assignment"
+                placeholder="e.g. Route Urgent Bugs to Lead"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                className="text-xs"
                 required
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Description (Optional)
               </label>
               <Textarea
                 rows={2}
-                placeholder="Brief summary of why this automation runs..."
+                placeholder="Brief summary of what this automation enforces..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                className="text-xs"
               />
             </div>
 
             {/* STEP 1: TRIGGER */}
-            <div className="rounded-lg border p-3.5 space-y-3 bg-muted/20">
+            <div className="rounded-lg border p-3 space-y-2 bg-muted/20">
               <div className="text-xs font-bold uppercase tracking-wider text-blue-600 flex items-center gap-1.5">
                 <PlayCircle className="h-3.5 w-3.5" />
                 Step 1: Event Trigger
               </div>
               <Select value={triggerEvent} onValueChange={setTriggerEvent}>
-                <SelectTrigger>
+                <SelectTrigger className="text-xs h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="lead.created">When a new Lead is created</SelectItem>
-                  <SelectItem value="deal.stage_changed">When a Deal changes Stage</SelectItem>
-                  <SelectItem value="ticket.created">When a Support Ticket is opened</SelectItem>
-                  <SelectItem value="contact.created">When a new Contact is registered</SelectItem>
+                  <SelectItem value="task.created">When a new Task / Issue is created</SelectItem>
+                  <SelectItem value="task.status_changed">When Task Status changes</SelectItem>
+                  <SelectItem value="task.priority_urgent">When Task is marked Urgent</SelectItem>
+                  <SelectItem value="task.overdue">When Task passes Due Date</SelectItem>
+                  <SelectItem value="sprint.started">When a Sprint starts</SelectItem>
+                  <SelectItem value="sprint.completed">When a Sprint completes</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {/* STEP 2: CONDITION */}
-            <div className="rounded-lg border p-3.5 space-y-3 bg-muted/20">
+            <div className="rounded-lg border p-3 space-y-2 bg-muted/20">
               <div className="text-xs font-bold uppercase tracking-wider text-purple-600 flex items-center gap-1.5">
                 <Sliders className="h-3.5 w-3.5" />
                 Step 2: Condition Filter
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <Select value={conditionField} onValueChange={setConditionField}>
-                  <SelectTrigger>
+                  <SelectTrigger className="text-xs h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="score">Lead Score</SelectItem>
-                    <SelectItem value="source">Lead Source</SelectItem>
-                    <SelectItem value="value">Deal Value ($)</SelectItem>
                     <SelectItem value="priority">Priority</SelectItem>
+                    <SelectItem value="status">Status</SelectItem>
+                    <SelectItem value="issueType">Issue Type</SelectItem>
+                    <SelectItem value="storyPoints">Story Points</SelectItem>
                   </SelectContent>
                 </Select>
 
                 <Select value={conditionOperator} onValueChange={setConditionOperator}>
-                  <SelectTrigger>
+                  <SelectTrigger className="text-xs h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="greater_than">Greater than (&gt;)</SelectItem>
                     <SelectItem value="equals">Equals (=)</SelectItem>
                     <SelectItem value="contains">Contains</SelectItem>
+                    <SelectItem value="greater_than">Greater than (&gt;)</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -485,64 +528,70 @@ export default function AutomationPage() {
                   placeholder="Target Value"
                   value={conditionValue}
                   onChange={(e) => setConditionValue(e.target.value)}
+                  className="text-xs h-9"
                   required
                 />
               </div>
             </div>
 
             {/* STEP 3: ACTION */}
-            <div className="rounded-lg border p-3.5 space-y-3 bg-muted/20">
+            <div className="rounded-lg border p-3 space-y-2 bg-muted/20">
               <div className="text-xs font-bold uppercase tracking-wider text-emerald-600 flex items-center gap-1.5">
                 <Zap className="h-3.5 w-3.5" />
                 Step 3: Automated Action
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <Select value={actionType} onValueChange={setActionType}>
-                  <SelectTrigger>
+                  <SelectTrigger className="text-xs h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="assign_owner">Assign Owner (Round-Robin)</SelectItem>
-                    <SelectItem value="send_email">Send Email Template</SelectItem>
-                    <SelectItem value="create_task">Create Follow-up Task</SelectItem>
-                    <SelectItem value="notify_team">Broadcast In-App Alert</SelectItem>
+                    <SelectItem value="assign_lead">Assign to Squad Lead</SelectItem>
+                    <SelectItem value="notify_team">Notify Team / Send In-App Alert</SelectItem>
+                    <SelectItem value="update_status">Auto-Advance Status</SelectItem>
+                    <SelectItem value="add_checklist">Attach Compliance Checklist</SelectItem>
                   </SelectContent>
                 </Select>
 
                 <Input
-                  placeholder="Config detail (e.g. Sales Team Alpha)"
+                  placeholder="Action detail (e.g. Lead Engineer)"
                   value={actionDetail}
                   onChange={(e) => setActionDetail(e.target.value)}
+                  className="text-xs h-9"
                   required
                 />
               </div>
             </div>
 
             <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateOpen(false)}
+                className="text-xs"
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createWorkflowMutation.isPending}>
-                {createWorkflowMutation.isPending ? "Creating Rule..." : "Deploy Rule"}
+              <Button
+                type="submit"
+                disabled={createWorkflowMutation.isPending}
+                className="text-xs"
+              >
+                {createWorkflowMutation.isPending ? "Creating..." : "Save Automation"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* CONFIRM DELETE DIALOG */}
+      {/* DELETE CONFIRMATION DIALOG */}
       <ConfirmDialog
-        open={!!workflowToDelete}
+        open={Boolean(workflowToDelete)}
         onOpenChange={(open) => !open && setWorkflowToDelete(null)}
         title="Delete Automation Rule"
-        description="Are you sure you want to permanently remove this automation? Active events will no longer trigger this action sequence."
-        confirmText="Delete Workflow"
-        variant="destructive"
-        onConfirm={() => {
-          if (workflowToDelete) {
-            deleteWorkflowMutation.mutate(workflowToDelete);
-          }
-        }}
+        description="Are you sure you want to delete this automation rule? It will no longer execute."
+        onConfirm={() => workflowToDelete && deleteWorkflowMutation.mutate(workflowToDelete)}
+        confirmText="Delete Rule"
       />
     </div>
   );
