@@ -5,6 +5,7 @@ import { User, Organization } from "@/lib/db/models";
 import { signJwt } from "@/lib/auth/jwt";
 import { apiError, apiSuccess } from "@/lib/auth/api-auth";
 import { env } from "@/lib/config/env";
+import { initializeWorkspaceDefaults } from "@/lib/db/workspace-init";
 
 export async function POST(req: NextRequest) {
   try {
@@ -39,6 +40,9 @@ export async function POST(req: NextRequest) {
       organizationId: org._id,
       status: "active",
     });
+
+    // Initialize workspace default pipeline and tags
+    await initializeWorkspaceDefaults(org._id, user._id);
 
     const token = signJwt({
       userId: user._id.toString(),

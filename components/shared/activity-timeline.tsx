@@ -32,7 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
@@ -329,6 +329,7 @@ export function ActivityTimeline({
                 {act.createdBy && (
                   <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground pt-1 border-t border-border/40">
                     <Avatar className="h-3.5 w-3.5">
+                      <AvatarImage src={act.createdBy.avatar} alt={act.createdBy.name} />
                       <AvatarFallback className="text-[8px]">
                         {act.createdBy.name?.[0] || "U"}
                       </AvatarFallback>

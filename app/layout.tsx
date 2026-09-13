@@ -9,9 +9,9 @@ import { Toaster } from "@/components/ui/sonner";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "NexusCRM - Enterprise Multi-Tenant CRM Platform",
+  title: "CookMyWork - Task & Project Management Platform",
   description:
-    "Production-grade, multi-tenant CRM web application inspired by Salesforce, HubSpot, Zoho CRM, and Pipedrive.",
+    "All-in-one task, project, and team management workspace for modern product teams.",
 };
 
 export default function RootLayout({
@@ -21,7 +21,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} min-h-screen bg-background text-foreground antialiased`}>
+      <body className={`${inter.className} h-full overflow-hidden bg-background text-foreground antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <QueryProvider>
             <AuthProvider>

@@ -196,6 +196,14 @@ export default function ReportsPage() {
             <div className="h-64 w-full">
               {isLoading ? (
                 <Skeleton className="h-full w-full" />
+              ) : !completionTrend.some((t: any) => (t.completed || 0) > 0 || (t.created || 0) > 0) ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 text-muted-foreground border border-dashed rounded-lg border-border/60">
+                  <TrendingUp className="h-8 w-8 mb-2 opacity-30 text-primary" />
+                  <p className="text-sm font-semibold text-foreground">No velocity metrics yet</p>
+                  <p className="text-xs max-w-sm mt-1">
+                    Task completion velocity across sprints will automatically calculate as your team completes work.
+                  </p>
+                </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={completionTrend}>

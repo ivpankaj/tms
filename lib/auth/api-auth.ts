@@ -82,11 +82,6 @@ export async function authenticateRequest(
       }
     }
 
-    // Fallback in demo/dev mode: if no token provided, get the default Admin
-    if (!user) {
-      user = await User.findOne({ email: "admin@nexus.io", isDeleted: false });
-    }
-
     if (!user) {
       return {
         errorResponse: apiError("Unauthorized: Please log in to access this resource", "UNAUTHORIZED", 401),
@@ -119,7 +114,7 @@ export async function authenticateRequest(
       },
     };
   } catch (error: any) {
-    console.error("[NexusCRM API Auth Error]:", error);
+    console.error("[CookMyWork API Auth Error]:", error);
     return {
       errorResponse: apiError("Internal authentication error", "INTERNAL_ERROR", 500),
     };

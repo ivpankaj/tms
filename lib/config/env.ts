@@ -1,5 +1,5 @@
 /**
- * NexusCRM Centralized Environment Configuration
+ * CookMyWork Centralized Environment Configuration
  * 
  * Provides type-safe access to all environment variables and sensitive credentials.
  * Reads directly from process.env with fallback mechanisms for safe local development.
@@ -8,18 +8,19 @@
 export const env = {
   // 1. Database
   database: {
-    uri: process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/nexuscrm",
-    dbName: process.env.MONGODB_DB_NAME || "nexuscrm",
+    uri: process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/cookmywork",
+    dbName: process.env.MONGODB_DB_NAME || "cookmywork",
   },
 
   // 2. Authentication & Cryptography
   auth: {
     jwtSecret:
-      process.env.JWT_SECRET || "nexus-crm-default-jwt-secret-key-replace-in-env-32-chars",
+      process.env.JWT_SECRET || "cookmywork-default-jwt-secret-key-replace-in-env-32-chars",
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
     refreshTokenSecret: process.env.REFRESH_TOKEN_SECRET || "",
-    cookieName: process.env.SESSION_COOKIE_NAME || "nexus_token",
+    cookieName: process.env.SESSION_COOKIE_NAME || "cookmywork",
     encryptionKey: process.env.ENCRYPTION_KEY || "",
+    defaultAdminEmail: (process.env.DEFAULT_ADMIN_EMAIL || "admin@cookmywork.com").toLowerCase().trim(),
   },
 
   // 3. Application Core
@@ -33,7 +34,7 @@ export const env = {
   // 4. Transactional Email (Resend & SMTP)
   email: {
     provider: (process.env.EMAIL_PROVIDER || "resend") as "resend" | "smtp" | "mock",
-    from: process.env.EMAIL_FROM || "notifications@nexus.io",
+    from: process.env.EMAIL_FROM || "notifications@cookmywork.com",
     resendApiKey: process.env.RESEND_API_KEY || "",
     smtp: {
       host: process.env.SMTP_HOST || "",
@@ -50,9 +51,24 @@ export const env = {
     awsRegion: process.env.AWS_REGION || "us-east-1",
     awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
     awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
-    s3Bucket: process.env.AWS_S3_BUCKET || "nexus-crm-attachments",
+    s3Bucket: process.env.AWS_S3_BUCKET || "cookmywork-attachments",
     endpoint: process.env.AWS_ENDPOINT || "",
     publicUrl: process.env.AWS_S3_PUBLIC_URL || "",
+  },
+
+  // 5.1 Cloudinary Media Storage (Images, Videos, Avatars & Workspace Media)
+  cloudinary: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME || "",
+    apiKey: process.env.CLOUDINARY_API_KEY || "",
+    apiSecret: process.env.CLOUDINARY_API_SECRET || "",
+    isConfigured: Boolean(
+      process.env.CLOUDINARY_CLOUD_NAME &&
+      !process.env.CLOUDINARY_CLOUD_NAME.includes("your_") &&
+      process.env.CLOUDINARY_API_KEY &&
+      !process.env.CLOUDINARY_API_KEY.includes("your_") &&
+      process.env.CLOUDINARY_API_SECRET &&
+      !process.env.CLOUDINARY_API_SECRET.includes("your_")
+    ),
   },
 
   // 6. Real-time WebSockets
@@ -74,7 +90,16 @@ export const env = {
     publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "",
   },
 
-  // 9. Observability
+  // 9. Google OAuth 2.0
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID || "",
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+    redirectUri:
+      process.env.GOOGLE_REDIRECT_URI ||
+      `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/auth/google/callback`,
+  },
+
+  // 10. Observability
   logging: {
     level: process.env.LOG_LEVEL || "debug",
     sentryDsn: process.env.SENTRY_DSN || "",
@@ -118,3 +143,9 @@ export function checkConfigHealth(): {
     warnings,
   };
 }
+
+export function isDefaultPlatformAdmin(email?: string | null): boolean {
+  if (!email) return false;
+  return email.toLowerCase().trim() === env.auth.defaultAdminEmail;
+}
+

@@ -6,11 +6,17 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(amount: number, currency: string = "USD"): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currency || "USD",
-    maximumFractionDigits: 0,
-  }).format(amount || 0);
+  const code = (currency || "USD").toUpperCase();
+  const locale = code === "INR" ? "en-IN" : "en-US";
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: code,
+      maximumFractionDigits: 0,
+    }).format(amount || 0);
+  } catch {
+    return `${currency} ${(amount || 0).toLocaleString()}`;
+  }
 }
 
 export function formatDate(date: string | Date | undefined | null): string {

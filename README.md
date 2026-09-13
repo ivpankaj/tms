@@ -1,12 +1,12 @@
-# NexusCRM — Production-Grade Multi-Tenant Enterprise CRM
+# CookMyWork — Production-Grade Multi-Tenant Workspace & CRM
 
-![NexusCRM Architecture](https://img.shields.io/badge/Architecture-Next.js%2016%20App%20Router-black?style=flat-square)
+![CookMyWork Architecture](https://img.shields.io/badge/Architecture-Next.js%2016%20App%20Router-black?style=flat-square)
 ![TypeScript](https://img.shields.io/badge/TypeScript-Strict%20Mode-blue?style=flat-square)
 ![UI](https://img.shields.io/badge/UI-shadcn%2Fui%20Primitives-black?style=flat-square)
 ![Database](https://img.shields.io/badge/Database-MongoDB%20%2B%20Mongoose-green?style=flat-square)
-![Testing](https://img.shields.io/badge/Tests-Jest%2014%20Passed-brightgreen?style=flat-square)
+![Testing](https://img.shields.io/badge/Tests-Jest%20Passed-brightgreen?style=flat-square)
 
-`NexusCRM` is a full-featured, multi-tenant enterprise Customer Relationship Management system inspired by modern Salesforce, HubSpot, and Pipedrive feature sets. Built with Next.js 16 App Router, TypeScript (strict mode), shadcn/ui design primitives, MongoDB Mongoose ODM, TanStack Query, Recharts, and role-based access control (RBAC).
+`CookMyWork` is a full-featured, multi-tenant workspace, task, and project management platform built with Next.js 16 App Router, TypeScript (strict mode), shadcn/ui design primitives, MongoDB Mongoose ODM, TanStack Query, Recharts, and role-based access control (RBAC).
 
 ---
 
@@ -87,15 +87,15 @@
 
 ## Quick Start (Docker Compose)
 
-The easiest way to run the entire NexusCRM stack (Next.js application, MongoDB 7, and Mongo Express):
+The easiest way to run the entire CookMyWork stack (Next.js application, MongoDB 7, and Mongo Express):
 
 ```bash
 # 1. Clone repository and start Docker services
 docker-compose up --build -d
 
 # 2. Access the services
-# NexusCRM Application: http://localhost:3000
-# Mongo Express Admin:  http://localhost:8081
+# CookMyWork Application: http://localhost:3000
+# Mongo Express Admin:    http://localhost:8081
 ```
 
 ---
@@ -104,7 +104,7 @@ docker-compose up --build -d
 
 ### 1. Prerequisites
 - **Node.js**: v20+ recommended
-- **MongoDB**: Local MongoDB instance running on `localhost:27017` (or Docker container)
+- **MongoDB**: Local MongoDB instance running on `localhost:27017` or Atlas cluster
 
 ### 2. Installation & Configuration
 
@@ -112,8 +112,8 @@ docker-compose up --build -d
 # Install dependencies
 npm install
 
-# Copy environment template
-cp .env.example .env.local
+# Configure environment variables (.env)
+cp .env.example .env
 ```
 
 ### 3. Run Development Server
@@ -124,15 +124,11 @@ npm run dev
 
 Visit [http://localhost:3000](http://localhost:3000).
 
-### 4. Demo Login Credentials
-
-The database automatically seeds on first launch with ~50 contacts, ~20 deals, pipelines, tasks, tickets, and campaigns:
+### 4. Default Admin Credentials
 
 | Role | Email | Password |
 | :--- | :--- | :--- |
-| **Super Admin** | `admin@nexus.io` | `Password123!` |
-| **Sales Representative** | `sarah.jenkins@nexus.io` | `Password123!` |
-| **Sales Representative** | `marcus.vance@nexus.io` | `Password123!` |
+| **Super Admin** | `admin@cookmywork.com` | `Password123!` |
 
 ---
 

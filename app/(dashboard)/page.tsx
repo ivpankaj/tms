@@ -237,14 +237,14 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Weekly Velocity Trend Chart */}
         <Card className="lg:col-span-2 shadow-2xs">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-2">
             <div>
               <CardTitle className="text-base font-bold">Productivity & Sprint Velocity</CardTitle>
               <CardDescription className="text-xs">
                 Tasks completed vs. newly created tasks over the past 6 weeks.
               </CardDescription>
             </div>
-            <div className="flex items-center gap-4 text-xs font-medium">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs font-medium">
               <div className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
                 <span>Completed ({kpi?.tasksCompletedThisWeek ?? 0} this week)</span>
@@ -259,6 +259,14 @@ export default function DashboardPage() {
             <div className="h-64 w-full">
               {isLoading ? (
                 <Skeleton className="h-full w-full" />
+              ) : !completionTrend.some((t: any) => (t.completed || 0) > 0 || (t.created || 0) > 0) ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 text-muted-foreground border border-dashed rounded-lg border-border/60">
+                  <TrendingUp className="h-8 w-8 mb-2 opacity-30 text-primary" />
+                  <p className="text-sm font-semibold text-foreground">No velocity data yet</p>
+                  <p className="text-xs max-w-sm mt-1">
+                    As your team creates and completes tasks over the coming weeks, your sprint velocity and productivity trends will appear here.
+                  </p>
+                </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={completionTrend}>

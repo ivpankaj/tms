@@ -13,40 +13,6 @@ export async function GET(req: NextRequest) {
     .sort({ createdAt: -1 })
     .limit(30);
 
-  // If none exist, generate demo notifications for the user
-  if (notifications.length === 0) {
-    const demoNotifications = await Notification.insertMany([
-      {
-        organizationId: auth!.organizationId,
-        userId: auth!.user._id,
-        title: "Deal Stage Updated",
-        message: 'Deal "Cloud Infrastructure Expansion" moved to Negotiation',
-        type: "deal",
-        isRead: false,
-        link: "/deals",
-      },
-      {
-        organizationId: auth!.organizationId,
-        userId: auth!.user._id,
-        title: "Task Due Soon",
-        message: "Prepare pitch deck for Enterprise Security deal is due today",
-        type: "task",
-        isRead: false,
-        link: "/tasks",
-      },
-      {
-        organizationId: auth!.organizationId,
-        userId: auth!.user._id,
-        title: "New High-Value Lead",
-        message: "Sarah Jenkins from Apex Systems submitted contact form (Score: 85)",
-        type: "lead",
-        isRead: true,
-        link: "/leads",
-      },
-    ]);
-    return apiSuccess(demoNotifications);
-  }
-
   return apiSuccess(notifications);
 }
 

@@ -1,10 +1,14 @@
 import { NextRequest } from "next/server";
-import { authenticateRequest, apiSuccess } from "@/lib/auth/api-auth";
-import { env, checkConfigHealth } from "@/lib/config/env";
+import { authenticateRequest, apiSuccess, apiError } from "@/lib/auth/api-auth";
+import { env, checkConfigHealth, isDefaultPlatformAdmin } from "@/lib/config/env";
 
 export async function GET(req: NextRequest) {
   const { auth, errorResponse } = await authenticateRequest(req, "settings:read");
   if (errorResponse) return errorResponse;
+
+  if (!isDefaultPlatformAdmin(auth!.user.email)) {
+    return apiError("Access restricted to platform administrator", "FORBIDDEN", 403);
+  }
 
   const health = checkConfigHealth();
 

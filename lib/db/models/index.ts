@@ -28,8 +28,8 @@ const OrganizationSchema = new Schema<IOrganization>(
     name: { type: String, required: true },
     slug: { type: String, required: true, unique: true, index: true },
     logo: { type: String },
-    timezone: { type: String, default: "America/New_York" },
-    currency: { type: String, default: "USD" },
+    timezone: { type: String, default: "Asia/Kolkata" },
+    currency: { type: String, default: "INR" },
     fiscalYearStart: { type: String, default: "January" },
     billingPlan: {
       type: String,
@@ -56,6 +56,8 @@ export interface IUser extends Document {
     inApp: boolean;
     taskReminders: boolean;
   };
+  googleId?: string;
+  authProvider?: "local" | "google";
   isDeleted: boolean;
   createdBy?: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -68,7 +70,9 @@ const UserSchema = new Schema<IUser>(
     passwordHash: { type: String, required: true },
     name: { type: String, required: true },
     avatar: { type: String },
-    timezone: { type: String, default: "America/New_York" },
+    googleId: { type: String, sparse: true, index: true },
+    authProvider: { type: String, enum: ["local", "google"], default: "local" },
+    timezone: { type: String, default: "Asia/Kolkata" },
     role: {
       type: String,
       enum: ["Super Admin", "Admin", "Manager", "Sales Rep", "Viewer"],
@@ -1144,3 +1148,32 @@ export const Sprint: Model<ISprint> =
 
 export const ProjectDoc: Model<IProjectDoc> =
   mongoose.models.ProjectDoc || mongoose.model<IProjectDoc>("ProjectDoc", ProjectDocSchema);
+
+export interface IApiKey extends Document {
+  organizationId: mongoose.Types.ObjectId;
+  name: string;
+  prefix: string;
+  hashedKey: string;
+  createdBy: mongoose.Types.ObjectId;
+  lastUsedAt?: Date;
+  isDeleted: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const ApiKeySchema = new Schema<IApiKey>(
+  {
+    organizationId: { type: Schema.Types.ObjectId, ref: "Organization", required: true, index: true },
+    name: { type: String, required: true },
+    prefix: { type: String, required: true },
+    hashedKey: { type: String, required: true },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    lastUsedAt: { type: Date },
+    isDeleted: { type: Boolean, default: false, index: true },
+  },
+  { timestamps: true }
+);
+
+export const ApiKey: Model<IApiKey> =
+  mongoose.models.ApiKey || mongoose.model<IApiKey>("ApiKey", ApiKeySchema);
+

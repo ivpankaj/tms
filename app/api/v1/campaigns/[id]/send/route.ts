@@ -65,7 +65,7 @@ export async function POST(
         sendEmail({
           to: sampleRecipients,
           subject: campaign.name,
-          html: `<p>NexusCRM Campaign: <strong>${campaign.name}</strong></p>`,
+          html: `<p>CookMyWork Campaign: <strong>${campaign.name}</strong></p>`,
         }).catch((err) => console.error("[CampaignSend] Background dispatch note:", err.message));
       }
     }

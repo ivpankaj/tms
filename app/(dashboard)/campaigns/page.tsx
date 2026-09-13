@@ -133,7 +133,7 @@ export default function CampaignsPage() {
   const [templateSubject, setTemplateSubject] = useState("");
   const [templateCategory, setTemplateCategory] = useState("Marketing");
   const [templateBody, setTemplateBody] = useState(
-    "Hi {{first_name}},\n\nWe wanted to share some exciting news regarding your account with NexusCRM.\n\nBest regards,\nNexus Growth Team"
+    "Hi {{first_name}},\n\nWe wanted to share some exciting news regarding your account with CookMyWork.\n\nBest regards,\nCookMyWork Team"
   );
 
   // Detail / Analytics Drawer state
@@ -700,7 +700,7 @@ export default function CampaignsPage() {
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Target Tag Filter
@@ -755,7 +755,7 @@ export default function CampaignsPage() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateTemplateSubmit} className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Template Name
@@ -791,7 +791,7 @@ export default function CampaignsPage() {
                 Email Subject Line
               </label>
               <Input
-                placeholder="e.g. Accelerating your team's workflow with NexusCRM"
+                placeholder="e.g. Accelerating your team's workflow with CookMyWork"
                 value={templateSubject}
                 onChange={(e) => setTemplateSubject(e.target.value)}
                 required

@@ -1,4 +1,5 @@
 import { env } from "@/lib/config/env";
+import { uploadToCloudinary } from "@/lib/services/cloudinary";
 import fs from "fs";
 import path from "path";
 
@@ -7,30 +8,52 @@ export interface UploadFileOptions {
   buffer: Buffer;
   mimeType: string;
   folder?: string;
+  resourceType?: "image" | "video" | "raw" | "auto";
 }
 
 export interface UploadFileResult {
   url: string;
   key: string;
-  storageDriver: "s3" | "local";
+  storageDriver: "cloudinary" | "s3" | "local";
   size: number;
 }
 
 /**
  * Enterprise File Storage Service
  * 
- * Dynamically switches between AWS S3 / Cloudflare R2 and Local Storage
- * based on environment variables:
- * - STORAGE_DRIVER ('s3' or 'local')
- * - AWS_ACCESS_KEY_ID & AWS_SECRET_ACCESS_KEY
- * - AWS_S3_BUCKET & AWS_REGION
+ * Dynamically switches between:
+ * 1. Cloudinary (for images, videos, avatars, media)
+ * 2. AWS S3 / Cloudflare R2
+ * 3. Local Disk / Public uploads
  */
 export async function uploadFile(options: UploadFileOptions): Promise<UploadFileResult> {
-  const { fileName, buffer, mimeType, folder = "attachments" } = options;
+  const { fileName, buffer, mimeType, folder = "attachments", resourceType = "auto" } = options;
   const safeName = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
   const key = `${folder}/${safeName}`;
 
-  // 1. AWS S3 or Compatible Cloud Storage
+  // 1. Cloudinary Media Storage (Highest priority when configured)
+  if (env.cloudinary.isConfigured) {
+    try {
+      const cloudResult = await uploadToCloudinary({
+        buffer,
+        fileName,
+        folder,
+        mimeType,
+        resourceType,
+      });
+
+      return {
+        url: cloudResult.url,
+        key: cloudResult.publicId,
+        storageDriver: "cloudinary",
+        size: cloudResult.bytes,
+      };
+    } catch (cloudErr) {
+      console.warn("[StorageService] Cloudinary upload failed, falling back to local:", cloudErr);
+    }
+  }
+
+  // 2. AWS S3 or Compatible Cloud Storage
   if (
     env.storage.driver === "s3" &&
     env.storage.awsAccessKeyId &&

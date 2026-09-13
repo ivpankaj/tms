@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth/auth-context";
 import {
@@ -47,6 +47,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { TimezoneCombobox } from "@/components/shared/timezone-combobox";
+import { CurrencyCombobox } from "@/components/shared/currency-combobox";
+import { AccountSettingsDialog } from "@/components/shared/account-settings-dialog";
 import { toast } from "sonner";
 import {
   Building2,
@@ -74,13 +77,27 @@ export default function SettingsPage() {
   const { user, authFetch } = useAuth();
   const queryClient = useQueryClient();
 
+  // Sole platform administrator check (default created root admin)
+  const isPlatformAdmin = Boolean(
+    user?.isPlatformAdmin ||
+    (user?.email && user.email.toLowerCase() === "admin@cookmywork.com")
+  );
+
   // Active Tab
   const [activeTab, setActiveTab] = useState("organization");
+  const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false);
+
+  // Prevent non-platform admins from accessing developers or audit tabs
+  useEffect(() => {
+    if (!isPlatformAdmin && (activeTab === "developers" || activeTab === "audit")) {
+      setActiveTab("organization");
+    }
+  }, [isPlatformAdmin, activeTab]);
 
   // Organization Form State
   const [orgName, setOrgName] = useState("");
-  const [orgTimezone, setOrgTimezone] = useState("America/New_York");
-  const [orgCurrency, setOrgCurrency] = useState("USD");
+  const [orgTimezone, setOrgTimezone] = useState("Asia/Kolkata");
+  const [orgCurrency, setOrgCurrency] = useState("INR");
   const [orgFiscalYear, setOrgFiscalYear] = useState("January");
   const [orgInitialized, setOrgInitialized] = useState(false);
 
@@ -89,7 +106,7 @@ export default function SettingsPage() {
   const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("Sales Rep");
-  const [inviteTimezone, setInviteTimezone] = useState("America/New_York");
+  const [inviteTimezone, setInviteTimezone] = useState("Asia/Kolkata");
 
   // Custom Field Modal
   const [isCustomFieldOpen, setIsCustomFieldOpen] = useState(false);
@@ -125,8 +142,8 @@ export default function SettingsPage() {
       const org = json.data;
       if (org && !orgInitialized) {
         setOrgName(org.name || "");
-        setOrgTimezone(org.timezone || "America/New_York");
-        setOrgCurrency(org.currency || "USD");
+        setOrgTimezone(org.timezone || "Asia/Kolkata");
+        setOrgCurrency(org.currency || "INR");
         setOrgFiscalYear(org.fiscalYearStart || "January");
         setOrgInitialized(true);
       }
@@ -164,7 +181,7 @@ export default function SettingsPage() {
     },
   });
 
-  // Fetch API Keys
+  // Fetch API Keys (Only for default platform admin)
   const { data: apiKeys = [], isLoading: keysLoading } = useQuery({
     queryKey: ["settings", "api-keys"],
     queryFn: async () => {
@@ -172,9 +189,10 @@ export default function SettingsPage() {
       const json = await res.json();
       return json.data || [];
     },
+    enabled: isPlatformAdmin,
   });
 
-  // Fetch Integrations & Environment Health
+  // Fetch Integrations & Environment Health (Only for default platform admin)
   const { data: integrationsData, isLoading: integrationsLoading } = useQuery({
     queryKey: ["settings", "integrations"],
     queryFn: async () => {
@@ -182,9 +200,10 @@ export default function SettingsPage() {
       const json = await res.json();
       return json.data || { integrations: [] };
     },
+    enabled: isPlatformAdmin,
   });
 
-  // Fetch Audit Logs
+  // Fetch Audit Logs (Only for default platform admin)
   const { data: auditLogs = [], isLoading: logsLoading } = useQuery({
     queryKey: ["settings", "audit-logs"],
     queryFn: async () => {
@@ -192,6 +211,7 @@ export default function SettingsPage() {
       const json = await res.json();
       return json.data || [];
     },
+    enabled: isPlatformAdmin,
   });
 
   // Update Org Mutation
@@ -438,41 +458,77 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Organization & Settings</h1>
         <p className="text-sm text-muted-foreground">
-          Tenant governance, role-based access control, schema customization, and developer integration keys.
+          {isPlatformAdmin
+            ? "Tenant governance, role-based access control, schema customization, developer keys, and security logs."
+            : "Tenant governance, role-based access control, and workspace custom schema."}
         </p>
       </div>
 
       {/* Main Settings Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 lg:w-auto">
-          <TabsTrigger value="organization" className="gap-2 text-xs">
+        <TabsList className={`grid w-full ${isPlatformAdmin ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6" : "grid-cols-2 sm:grid-cols-4"} h-auto p-1 gap-1`}>
+          <TabsTrigger value="organization" className="gap-2 text-xs py-1.5">
             <Building2 className="h-3.5 w-3.5" />
             General
           </TabsTrigger>
-          <TabsTrigger value="team" className="gap-2 text-xs">
+          <TabsTrigger value="team" className="gap-2 text-xs py-1.5">
             <Users className="h-3.5 w-3.5" />
             Team & RBAC
           </TabsTrigger>
-          <TabsTrigger value="custom-fields" className="gap-2 text-xs">
+          <TabsTrigger value="custom-fields" className="gap-2 text-xs py-1.5">
             <Sliders className="h-3.5 w-3.5" />
             Custom Fields
           </TabsTrigger>
-          <TabsTrigger value="tags" className="gap-2 text-xs">
+          <TabsTrigger value="tags" className="gap-2 text-xs py-1.5">
             <Tags className="h-3.5 w-3.5" />
             Tags
           </TabsTrigger>
-          <TabsTrigger value="developers" className="gap-2 text-xs">
-            <Key className="h-3.5 w-3.5" />
-            API & Keys
-          </TabsTrigger>
-          <TabsTrigger value="audit" className="gap-2 text-xs">
-            <ShieldAlert className="h-3.5 w-3.5" />
-            Audit Logs
-          </TabsTrigger>
+          {isPlatformAdmin && (
+            <>
+              <TabsTrigger value="developers" className="gap-2 text-xs py-1.5">
+                <Key className="h-3.5 w-3.5" />
+                API & Keys
+              </TabsTrigger>
+              <TabsTrigger value="audit" className="gap-2 text-xs py-1.5">
+                <ShieldAlert className="h-3.5 w-3.5" />
+                Audit Logs
+              </TabsTrigger>
+            </>
+          )}
         </TabsList>
 
         {/* TAB 1: ORGANIZATION GENERAL SETTINGS */}
         <TabsContent value="organization" className="space-y-4">
+          {/* User Personal Profile & Security Banner */}
+          <div className="p-4 rounded-xl border bg-card/60 backdrop-blur-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <Avatar className="h-12 w-12 ring-2 ring-primary/20 shadow-xs">
+                <AvatarImage src={user?.avatar} alt={user?.name} className="object-cover" />
+                <AvatarFallback className="text-sm font-semibold bg-primary/10 text-primary">
+                  {user?.name ? user.name.slice(0, 2).toUpperCase() : "ME"}
+                </AvatarFallback>
+              </Avatar>
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-foreground">{user?.name || "My Account"}</h3>
+                  <Badge variant="secondary" className="text-[10px]">{user?.role || "Member"}</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">{user?.email}</p>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsAccountSettingsOpen(true)}
+              className="text-xs gap-2 w-full sm:w-auto shrink-0 cursor-pointer"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              Edit Profile & Change Password
+            </Button>
+          </div>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base font-semibold">Workspace Profile</CardTitle>
@@ -504,38 +560,14 @@ export default function SettingsPage() {
                       <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                         Primary Timezone
                       </label>
-                      <Select value={orgTimezone} onValueChange={setOrgTimezone}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="America/New_York">Eastern Time (US & Canada)</SelectItem>
-                          <SelectItem value="America/Chicago">Central Time (US & Canada)</SelectItem>
-                          <SelectItem value="America/Denver">Mountain Time (US & Canada)</SelectItem>
-                          <SelectItem value="America/Los_Angeles">Pacific Time (US & Canada)</SelectItem>
-                          <SelectItem value="Europe/London">London (GMT)</SelectItem>
-                          <SelectItem value="Europe/Berlin">Central European Time (CET)</SelectItem>
-                          <SelectItem value="Asia/Tokyo">Tokyo (JST)</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <TimezoneCombobox value={orgTimezone} onValueChange={setOrgTimezone} />
                     </div>
 
                     <div className="space-y-2">
                       <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                         Default Currency
                       </label>
-                      <Select value={orgCurrency} onValueChange={setOrgCurrency}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="USD">USD ($) - United States Dollar</SelectItem>
-                          <SelectItem value="EUR">EUR (€) - Euro</SelectItem>
-                          <SelectItem value="GBP">GBP (£) - British Pound</SelectItem>
-                          <SelectItem value="CAD">CAD ($) - Canadian Dollar</SelectItem>
-                          <SelectItem value="AUD">AUD ($) - Australian Dollar</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <CurrencyCombobox value={orgCurrency} onValueChange={setOrgCurrency} />
                     </div>
                   </div>
 
@@ -804,8 +836,10 @@ export default function SettingsPage() {
           </div>
         </TabsContent>
 
-        {/* TAB 5: DEVELOPERS & API KEYS */}
-        <TabsContent value="developers" className="space-y-4">
+        {/* TAB 5 & 6: DEVELOPERS & AUDIT LOGS (RESTRICTED TO PLATFORM ADMIN) */}
+        {isPlatformAdmin && (
+          <>
+            <TabsContent value="developers" className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-base font-semibold">API Credentials & External Integrations</h3>
@@ -1000,6 +1034,8 @@ export default function SettingsPage() {
             </Table>
           </div>
         </TabsContent>
+          </>
+        )}
       </Tabs>
 
       {/* INVITE USER MODAL */}
@@ -1334,6 +1370,12 @@ export default function SettingsPage() {
             deleteTagMutation.mutate(tagToDelete);
           }
         }}
+      />
+
+      {/* Account Settings & Password Dialog */}
+      <AccountSettingsDialog
+        open={isAccountSettingsOpen}
+        onOpenChange={setIsAccountSettingsOpen}
       />
     </div>
   );

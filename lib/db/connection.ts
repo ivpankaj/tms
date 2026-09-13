@@ -32,11 +32,11 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
     cached.promise = (async () => {
       // 1. Cloud MongoDB (e.g. MongoDB Atlas)
       if (isCloudCluster) {
-        console.log("[NexusCRM] Connecting to MongoDB Atlas Cluster...");
+        console.log("[CookMyWork] Connecting to MongoDB Atlas Cluster...");
         return await mongoose.connect(mongoUri, {
           bufferCommands: false,
           serverSelectionTimeoutMS: 10000,
-          dbName: env.database.dbName || undefined,
+          dbName: env.database.dbName || "cookmywork",
         });
       }
 
@@ -45,15 +45,15 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
         const localConn = await mongoose.connect(mongoUri, {
           bufferCommands: false,
           serverSelectionTimeoutMS: 1500,
-          dbName: env.database.dbName || undefined,
+          dbName: env.database.dbName || "cookmywork",
         });
         return localConn;
       } catch (localErr: any) {
         console.warn(
-          `[NexusCRM] Local MongoDB at ${mongoUri} not reachable (${localErr.message || "Connection refused"}).`
+          `[CookMyWork] Local MongoDB at ${mongoUri} not reachable (${localErr.message || "Connection refused"}).`
         );
         console.log(
-          "[NexusCRM] Auto-starting embedded in-memory MongoDB engine for seamless instant development..."
+          "[CookMyWork] Auto-starting embedded in-memory MongoDB engine for seamless instant development..."
         );
 
         // 3. Fallback to embedded in-memory MongoDB
@@ -63,12 +63,12 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
         }
 
         const embeddedUri = cached.memoryServer.getUri();
-        console.log(`[NexusCRM] Embedded MongoDB running at: ${embeddedUri}`);
+        console.log(`[CookMyWork] Embedded MongoDB running at: ${embeddedUri}`);
 
         return await mongoose.connect(embeddedUri, {
           bufferCommands: false,
           serverSelectionTimeoutMS: 5000,
-          dbName: env.database.dbName || "nexuscrm",
+          dbName: env.database.dbName || "cookmywork",
         });
       }
     })()
@@ -77,7 +77,7 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
         return m;
       })
       .catch((err) => {
-        console.error("[NexusCRM] Database connection failed:", err.message);
+        console.error("[CookMyWork] Database connection failed:", err.message);
         cached.promise = null;
         throw err;
       });

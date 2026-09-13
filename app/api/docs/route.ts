@@ -4,10 +4,10 @@ export async function GET() {
   const openApiSpec = {
     openapi: "3.0.3",
     info: {
-      title: "NexusCRM REST API",
+      title: "CookMyWork REST API",
       version: "1.0.0",
       description:
-        "Production-grade, multi-tenant CRM API documentation for Contacts, Companies, Leads, Deals, Tasks, Tickets, Campaigns, Reports, and Automation.",
+        "Production-grade, multi-tenant API documentation for Workspace, Tasks, Projects, Teams, and Automation.",
     },
     servers: [
       {
@@ -26,7 +26,7 @@ export async function GET() {
                 schema: {
                   type: "object",
                   properties: {
-                    email: { type: "string", example: "admin@nexus.io" },
+                    email: { type: "string", example: "admin@cookmywork.com" },
                     password: { type: "string", example: "Password123!" },
                   },
                 },

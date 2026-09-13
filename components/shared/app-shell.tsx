@@ -35,10 +35,12 @@ import {
   Plus,
   Timer,
   Zap,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { AccountSettingsDialog } from "@/components/shared/account-settings-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -118,11 +120,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
-  const { user, organization, organizations, switchOrganization, logout } = useAuth();
+  const { user, organization, organizations, switchOrganization, logout, isLoading } = useAuth();
   const queryClient = useQueryClient();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
+  const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false);
+
+  // Auth Guard: redirect unauthenticated users to /login
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.replace("/login");
+    }
+  }, [isLoading, user, router]);
 
   // Global 'C' shortcut to create task
   useEffect(() => {
@@ -254,15 +264,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 
+  if (isLoading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-background text-foreground">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-linear-to-br from-primary to-primary/80 text-primary-foreground flex items-center justify-center font-black text-xl shadow-md animate-pulse">
+            C
+          </div>
+          <p className="text-xs text-muted-foreground animate-pulse">Loading CookMyWork...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
   return (
     <TooltipProvider>
       {/* Pinned Viewport Container - Prevents whole-page scrolling */}
-      <div className="h-screen w-screen overflow-hidden flex bg-background text-foreground">
+      <div className="h-dvh h-screen w-full overflow-hidden flex bg-background text-foreground">
         {/* ========================================================================= */}
         {/* DESKTOP SIDEBAR (Pinned, Fixed Height, Independent Internal Scroll) */}
         {/* ========================================================================= */}
         <aside
-          className={`hidden md:flex flex-col h-screen sticky top-0 shrink-0 border-r border-border/70 bg-card/95 backdrop-blur-md z-40 transition-all duration-300 ease-in-out ${
+          className={`hidden md:flex flex-col h-full min-h-0 overflow-hidden shrink-0 border-r border-border/70 bg-card/95 backdrop-blur-md z-40 transition-all duration-300 ease-in-out ${
             isCollapsed ? "w-[72px]" : "w-64 lg:w-72"
           }`}
         >
@@ -271,11 +298,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {!isCollapsed ? (
               <div className="flex items-center gap-2.5 overflow-hidden">
                 <div className="h-8 w-8 rounded-lg bg-linear-to-br from-primary to-primary/80 text-primary-foreground flex items-center justify-center font-black text-sm shadow-sm ring-1 ring-primary/20 shrink-0">
-                  N
+                  C
                 </div>
                 <div className="flex flex-col overflow-hidden">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-sm tracking-tight text-foreground">Nexus Workspace</span>
+                    <span className="font-bold text-sm tracking-tight text-foreground">CookMyWork</span>
                     <Badge variant="secondary" className="text-[9px] font-mono px-1 py-0 uppercase">
                       Pro
                     </Badge>
@@ -285,7 +312,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             ) : (
               <div className="mx-auto h-8 w-8 rounded-lg bg-linear-to-br from-primary to-primary/80 text-primary-foreground flex items-center justify-center font-black text-sm shadow-sm shrink-0">
-                N
+                C
               </div>
             )}
 
@@ -357,7 +384,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
 
           {/* Nav Links (Scrolls independently if screen height is small) */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-thin">
             <NavigationContent collapsed={isCollapsed} />
           </div>
 
@@ -370,6 +397,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <button className="flex items-center gap-2.5 overflow-hidden text-left p-1 rounded-lg hover:bg-muted/60 transition-colors flex-1 cursor-pointer">
                       <div className="relative shrink-0">
                         <Avatar className="h-8 w-8 ring-1 ring-border">
+                          <AvatarImage src={user?.avatar} alt={user?.name} className="object-cover" />
                           <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
                             {user?.name ? user.name.slice(0, 2).toUpperCase() : "AD"}
                           </AvatarFallback>
@@ -377,7 +405,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-background" />
                       </div>
                       <div className="overflow-hidden flex-1">
-                        <p className="text-xs font-semibold truncate leading-tight">{user?.name || "Alex Sterling"}</p>
+                        <p className="text-xs font-semibold truncate leading-tight">{user?.name || "CookMyWork Admin"}</p>
                         <p className="text-[10px] text-muted-foreground truncate">{user?.role || "Super Admin"}</p>
                       </div>
                       <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
@@ -386,12 +414,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <DropdownMenuContent align="end" side="top" className="w-56 mb-2">
                     <DropdownMenuLabel className="font-normal text-xs">
                       <p className="font-semibold">{user?.name || "Admin"}</p>
-                      <p className="text-muted-foreground text-[11px] truncate">{user?.email || "admin@nexus.io"}</p>
+                      <p className="text-muted-foreground text-[11px] truncate">{user?.email || "admin@cookmywork.com"}</p>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => router.push("/settings")} className="text-xs cursor-pointer">
+                    <DropdownMenuItem onClick={() => setIsAccountSettingsOpen(true)} className="text-xs cursor-pointer">
                       <Settings className="h-3.5 w-3.5 mr-2" />
-                      <span>Account Settings</span>
+                      <span>Account Settings & Profile</span>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
@@ -409,10 +437,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Tooltip delayDuration={50}>
                   <TooltipTrigger asChild>
                     <button
-                      onClick={() => router.push("/settings")}
+                      onClick={() => setIsAccountSettingsOpen(true)}
                       className="relative p-1 rounded-lg hover:bg-muted/60 transition-colors cursor-pointer"
                     >
                       <Avatar className="h-8 w-8 ring-1 ring-border">
+                        <AvatarImage src={user?.avatar} alt={user?.name} className="object-cover" />
                         <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
                           {user?.name ? user.name.slice(0, 2).toUpperCase() : "AD"}
                         </AvatarFallback>
@@ -433,7 +462,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* ========================================================================= */}
         {/* MAIN APPLICATION CONTAINER (Fixed Header + Independently Scrollable Body) */}
         {/* ========================================================================= */}
-        <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden">
+        <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
           {/* Top Sticky Navbar */}
           <header className="h-16 shrink-0 border-b border-border/70 bg-background/90 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between gap-3 sticky top-0 z-30">
             {/* Left: Mobile Drawer Trigger + Global Search */}
@@ -450,10 +479,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <SheetHeader className="h-16 shrink-0 border-b border-border/70 px-4 flex justify-center text-left">
                     <SheetTitle className="flex items-center gap-2.5 text-base font-bold">
                       <div className="h-7 w-7 rounded-lg bg-linear-to-br from-primary to-primary/80 text-primary-foreground flex items-center justify-center font-black text-sm">
-                        N
+                        C
                       </div>
                       <div className="flex flex-col">
-                        <span>Nexus Workspace</span>
+                        <span>CookMyWork</span>
                         <span className="text-[10px] font-normal text-muted-foreground">Task & Project Management</span>
                       </div>
                     </SheetTitle>
@@ -468,13 +497,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <div className="shrink-0 p-3 border-t border-border/70 bg-muted/20 flex items-center justify-between">
                     <div className="flex items-center gap-2 overflow-hidden">
                       <Avatar className="h-8 w-8">
+                        <AvatarImage src={user?.avatar} alt={user?.name} className="object-cover" />
                         <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
                           {user?.name ? user.name.slice(0, 2).toUpperCase() : "AD"}
                         </AvatarFallback>
                       </Avatar>
                       <div className="overflow-hidden">
                         <p className="text-xs font-semibold truncate">{user?.name || "Admin"}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">{user?.email || "admin@nexus.io"}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{user?.email || "admin@cookmywork.com"}</p>
                       </div>
                     </div>
                     <Button
@@ -585,6 +615,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="h-9 px-2 gap-2">
                     <Avatar className="h-6 w-6">
+                      <AvatarImage src={user?.avatar} alt={user?.name} className="object-cover" />
                       <AvatarFallback className="text-[10px] font-semibold bg-primary text-primary-foreground">
                         {user?.name ? user.name[0] : "A"}
                       </AvatarFallback>
@@ -598,8 +629,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-xs font-semibold leading-none">{user?.name || "Nexus Admin"}</p>
-                      <p className="text-[11px] leading-none text-muted-foreground">{user?.email || "admin@nexus.io"}</p>
+                      <p className="text-xs font-semibold leading-none">{user?.name || "CookMyWork Admin"}</p>
+                      <p className="text-[11px] leading-none text-muted-foreground">{user?.email || "admin@cookmywork.com"}</p>
                       <div className="pt-1">
                         <Badge variant="secondary" className="text-[10px] font-normal">
                           <Shield className="h-2.5 w-2.5 mr-1 text-primary" />
@@ -609,6 +640,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setIsAccountSettingsOpen(true)} className="text-xs cursor-pointer">
+                    <User className="mr-2 h-4 w-4 text-primary" />
+                    <span>My Account & Security</span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => router.push("/settings")} className="text-xs cursor-pointer">
                     <Settings className="mr-2 h-4 w-4" />
                     <span>Workspace Settings</span>
@@ -626,7 +661,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {/* ========================================================================= */}
           {/* INDEPENDENTLY SCROLLABLE CONTENT BODY (Sidebar & Header remain locked) */}
           {/* ========================================================================= */}
-          <main className="flex-1 h-[calc(100vh-4rem)] overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8 scroll-smooth">
+          <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3.5 sm:p-6 lg:p-8 scroll-smooth">
             <div className="max-w-7xl mx-auto space-y-6">{children}</div>
           </main>
         </div>
@@ -636,6 +671,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <CreateTaskDialog
         open={isCreateTaskOpen}
         onOpenChange={setIsCreateTaskOpen}
+      />
+
+      {/* Global Account Settings & Profile Security Dialog */}
+      <AccountSettingsDialog
+        open={isAccountSettingsOpen}
+        onOpenChange={setIsAccountSettingsOpen}
       />
     </TooltipProvider>
   );

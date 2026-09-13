@@ -293,10 +293,10 @@ export function CreateTaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-2 border-b">
+      <DialogContent className="max-w-2xl w-[calc(100vw-1.5rem)] sm:w-full max-h-[calc(100dvh-2rem)] sm:max-h-[88vh] overflow-y-auto p-4 sm:p-6 scrollbar-thin rounded-2xl border-border/80 shadow-2xl">
+        <DialogHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pr-10 pb-3 border-b">
           <div>
-            <DialogTitle className="text-xl font-bold">Create New Task</DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl font-bold">Create New Task</DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
               Production task management with issue types, sprints, templates, and estimates.
             </DialogDescription>
@@ -305,7 +305,7 @@ export function CreateTaskDialog({
           {/* Template Picker */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8">
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8 shrink-0">
                 <FileText className="h-3.5 w-3.5 text-primary" />
                 <span>Use Template</span>
                 <ChevronDown className="h-3 w-3 text-muted-foreground" />
@@ -330,11 +330,11 @@ export function CreateTaskDialog({
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           {/* Issue Type & Title Row */}
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
               <Label htmlFor="task-title" className="text-xs font-semibold">
                 Title <span className="text-destructive">*</span>
               </Label>
-              <div className="flex items-center gap-1">
+              <div className="flex flex-wrap items-center gap-1">
                 {ISSUE_TYPES.map((t) => {
                   const Icon = t.icon;
                   const isSelected = issueType === t.id;

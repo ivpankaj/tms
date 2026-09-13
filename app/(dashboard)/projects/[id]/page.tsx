@@ -1365,8 +1365,8 @@ export default function ProjectDetailPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 pt-2">
-            <div className="grid grid-cols-3 gap-2">
-              <div className="col-span-2 space-y-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="sm:col-span-2 space-y-1">
                 <Label className="text-xs font-semibold">Title</Label>
                 <Input
                   placeholder="Document title..."

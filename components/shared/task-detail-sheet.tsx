@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -859,6 +859,7 @@ export function TaskDetailSheet({
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2">
                                 <Avatar className="h-5 w-5">
+                                  <AvatarImage src={c.userId?.avatar} alt={c.userId?.name} />
                                   <AvatarFallback className="text-[9px] bg-primary text-primary-foreground">
                                     {c.userId?.name ? c.userId.name[0] : "U"}
                                   </AvatarFallback>
@@ -985,6 +986,7 @@ export function TaskDetailSheet({
                           >
                             <div className="flex items-center gap-2.5 truncate">
                               <Avatar className="h-6 w-6">
+                                <AvatarImage src={log.userId?.avatar} alt={log.userId?.name} />
                                 <AvatarFallback className="text-[9px] bg-primary/10 text-primary">
                                   {log.userId?.name ? log.userId.name[0] : "U"}
                                 </AvatarFallback>

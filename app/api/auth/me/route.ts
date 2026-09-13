@@ -18,6 +18,9 @@ export async function GET(req: NextRequest) {
   const orgIds = userAccounts.map((u) => u.organizationId);
   const organizations = await Organization.find({ _id: { $in: orgIds }, isDeleted: false });
 
+  const defaultAdmin = (process.env.DEFAULT_ADMIN_EMAIL || "admin@cookmywork.com").toLowerCase().trim();
+  const isPlatformAdmin = user.email.toLowerCase().trim() === defaultAdmin;
+
   return apiSuccess({
     user: {
       id: user._id.toString(),
@@ -27,6 +30,7 @@ export async function GET(req: NextRequest) {
       avatar: user.avatar,
       timezone: user.timezone,
       organizationId: user.organizationId.toString(),
+      isPlatformAdmin,
     },
     organization: {
       id: currentOrg._id.toString(),

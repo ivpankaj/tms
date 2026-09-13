@@ -283,7 +283,7 @@ export default function ProjectsPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Project Key (Prefix)</Label>
                 <Input
@@ -315,7 +315,7 @@ export default function ProjectsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Status</Label>
                 <Select value={status} onValueChange={setStatus}>

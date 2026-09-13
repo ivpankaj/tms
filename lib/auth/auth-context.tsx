@@ -12,6 +12,7 @@ export interface UserSession {
   avatar?: string;
   timezone: string;
   organizationId: string;
+  isPlatformAdmin?: boolean;
 }
 
 export interface OrgSession {
@@ -35,6 +36,7 @@ interface AuthContextType {
   switchOrganization: (orgId: string) => Promise<void>;
   hasPermission: (permission: string) => boolean;
   authFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = React.createContext<AuthContextType | undefined>(undefined);
@@ -167,6 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         switchOrganization,
         hasPermission: hasPerm,
         authFetch,
+        refreshSession: fetchSession,
       }}
     >
       {children}

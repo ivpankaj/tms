@@ -6,35 +6,35 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: nexus_crm_app
+    container_name: cookmywork_app
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - MONGODB_URI=mongodb://mongodb:27017/nexus_crm
-      - JWT_SECRET=super_secret_production_jwt_key_nexus_crm_2026!
+      - MONGODB_URI=mongodb://mongodb:27017/cookmywork
+      - JWT_SECRET=super_secret_production_jwt_key_cookmywork_2026!
       - NEXT_PUBLIC_APP_URL=http://localhost:3000
     depends_on:
       mongodb:
         condition: service_healthy
     networks:
-      - nexus_network
+      - cookmywork_network
 
   # MongoDB Database Service
   mongodb:
     image: mongo:7.0
-    container_name: nexus_crm_mongo
+    container_name: cookmywork_mongo
     restart: unless-stopped
     ports:
       - "27017:27017"
     environment:
-      - MONGO_INITDB_DATABASE=nexus_crm
+      - MONGO_INITDB_DATABASE=cookmywork
     volumes:
       - mongo_data:/data/db
     networks:
-      - nexus_network
+      - cookmywork_network
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
@@ -45,7 +45,7 @@ services:
   # Mongo Express Database Admin GUI
   mongo-express:
     image: mongo-express:latest
-    container_name: nexus_crm_mongo_express
+    container_name: cookmywork_mongo_express
     restart: unless-stopped
     ports:
       - "8081:8081"
@@ -57,10 +57,10 @@ services:
       mongodb:
         condition: service_healthy
     networks:
-      - nexus_network
+      - cookmywork_network
 
 networks:
-  nexus_network:
+  cookmywork_network:
     driver: bridge
 
 volumes:

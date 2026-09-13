@@ -222,8 +222,8 @@ export async function GET(req: NextRequest) {
 
       completionTrend.push({
         label,
-        completed: Math.max(completedCount, i === 5 ? 3 : i * 2 + 1),
-        created: Math.max(createdCount, (i % 2 === 0 ? 5 : 3) + 1),
+        completed: completedCount,
+        created: createdCount,
       });
     }
 
@@ -236,8 +236,8 @@ export async function GET(req: NextRequest) {
         dueTodayTasks,
         upcomingTasks,
         completionRate,
-        tasksCompletedThisWeek: Math.max(tasksCompletedThisWeek, 4),
-        tasksCreatedThisWeek: Math.max(tasksCreatedThisWeek, 6),
+        tasksCompletedThisWeek,
+        tasksCreatedThisWeek,
       },
       statusBreakdown,
       priorityBreakdown,
