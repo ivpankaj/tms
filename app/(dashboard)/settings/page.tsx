@@ -453,7 +453,8 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <>
+      <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Organization & Settings</h1>
@@ -498,7 +499,7 @@ export default function SettingsPage() {
         </TabsList>
 
         {/* TAB 1: ORGANIZATION GENERAL SETTINGS */}
-        <TabsContent value="organization" className="space-y-4">
+        <TabsContent value="organization" className="space-y-6">
           {/* User Personal Profile & Security Banner */}
           <div className="p-4 rounded-xl border bg-card/60 backdrop-blur-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
@@ -529,108 +530,113 @@ export default function SettingsPage() {
             </Button>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-semibold">Workspace Profile</CardTitle>
-              <CardDescription>
-                Configure multi-tenant organization identifiers, operating currency, and fiscal cycles.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {orgLoading ? (
-                <div className="space-y-4">
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                </div>
-              ) : (
-                <form onSubmit={handleOrgSubmit} className="space-y-4 max-w-xl">
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Organization Legal Name
-                    </label>
-                    <Input
-                      value={orgName}
-                      onChange={(e) => setOrgName(e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        Primary Timezone
-                      </label>
-                      <TimezoneCombobox value={orgTimezone} onValueChange={setOrgTimezone} />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left 7 cols: Workspace Profile Card */}
+            <div className="lg:col-span-7">
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold">Workspace Profile</CardTitle>
+                  <CardDescription>
+                    Configure multi-tenant organization identifiers, operating currency, and fiscal cycles.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {orgLoading ? (
+                    <div className="space-y-4">
+                      <Skeleton className="h-10 w-full" />
+                      <Skeleton className="h-10 w-full" />
                     </div>
+                  ) : (
+                    <form onSubmit={handleOrgSubmit} className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Organization Legal Name
+                        </label>
+                        <Input
+                          value={orgName}
+                          onChange={(e) => setOrgName(e.target.value)}
+                          required
+                        />
+                      </div>
 
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        Default Currency
-                      </label>
-                      <CurrencyCombobox value={orgCurrency} onValueChange={setOrgCurrency} />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Primary Timezone
+                          </label>
+                          <TimezoneCombobox value={orgTimezone} onValueChange={setOrgTimezone} />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Default Currency
+                          </label>
+                          <CurrencyCombobox value={orgCurrency} onValueChange={setOrgCurrency} />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Fiscal Year Start Month
+                        </label>
+                        <Select value={orgFiscalYear} onValueChange={setOrgFiscalYear}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="January">January (Standard Calendar)</SelectItem>
+                            <SelectItem value="April">April (Q2 Start)</SelectItem>
+                            <SelectItem value="July">July (Mid-year)</SelectItem>
+                            <SelectItem value="October">October (Q4 Start)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="pt-2">
+                        <Button type="submit" disabled={updateOrgMutation.isPending}>
+                          {updateOrgMutation.isPending ? "Saving..." : "Save Changes"}
+                        </Button>
+                      </div>
+                    </form>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Right 5 cols: Subscription Tier Overview */}
+            <div className="lg:col-span-5">
+              <Card className="h-full flex flex-col justify-between">
+                <CardHeader>
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <CardTitle className="text-base font-semibold">Tenant Plan & Tier</CardTitle>
+                      <CardDescription>Current subscription quota and privileges.</CardDescription>
                     </div>
+                    <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200 shrink-0">
+                      Enterprise Active
+                    </Badge>
                   </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Fiscal Year Start Month
-                    </label>
-                    <Select value={orgFiscalYear} onValueChange={setOrgFiscalYear}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="January">January (Standard Calendar)</SelectItem>
-                        <SelectItem value="April">April (Q2 Start)</SelectItem>
-                        <SelectItem value="July">July (Mid-year)</SelectItem>
-                        <SelectItem value="October">October (Q4 Start)</SelectItem>
-                      </SelectContent>
-                    </Select>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="rounded-lg border p-3 bg-muted/20">
+                    <div className="text-xs text-muted-foreground">Records Allowance</div>
+                    <div className="text-lg font-bold mt-0.5">Unlimited</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">Contacts, Deals, and Accounts</div>
                   </div>
-
-                  <div className="pt-2">
-                    <Button type="submit" disabled={updateOrgMutation.isPending}>
-                      {updateOrgMutation.isPending ? "Saving..." : "Save Changes"}
-                    </Button>
+                  <div className="rounded-lg border p-3 bg-muted/20">
+                    <div className="text-xs text-muted-foreground">Pipelines & Workflows</div>
+                    <div className="text-lg font-bold mt-0.5">Unlimited</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">Multi-funnel + event triggers</div>
                   </div>
-                </form>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Subscription Tier Overview */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base font-semibold">Tenant Plan & Tier</CardTitle>
-                  <CardDescription>Your current subscription quota and platform feature privileges.</CardDescription>
-                </div>
-                <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200">
-                  Enterprise Tier Active
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="rounded-lg border p-3 bg-muted/20">
-                  <div className="text-xs text-muted-foreground">Records Allowance</div>
-                  <div className="text-lg font-bold mt-1">Unlimited</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">Contacts, Deals, and Accounts</div>
-                </div>
-                <div className="rounded-lg border p-3 bg-muted/20">
-                  <div className="text-xs text-muted-foreground">Pipelines & Workflows</div>
-                  <div className="text-lg font-bold mt-1">Unlimited</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">Multi-funnel + event triggers</div>
-                </div>
-                <div className="rounded-lg border p-3 bg-muted/20">
-                  <div className="text-xs text-muted-foreground">Security & SLA</div>
-                  <div className="text-lg font-bold mt-1 text-emerald-600">99.99%</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">Audit trail & encrypted data isolation</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                  <div className="rounded-lg border p-3 bg-muted/20">
+                    <div className="text-xs text-muted-foreground">Security & SLA</div>
+                    <div className="text-lg font-bold mt-0.5 text-emerald-600">99.99%</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">Audit trail & encrypted data isolation</div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </TabsContent>
 
         {/* TAB 2: TEAM & RBAC MANAGEMENT */}
@@ -1037,6 +1043,7 @@ export default function SettingsPage() {
           </>
         )}
       </Tabs>
+    </div>
 
       {/* INVITE USER MODAL */}
       <Dialog open={isInviteUserOpen} onOpenChange={setIsInviteUserOpen}>
@@ -1377,6 +1384,6 @@ export default function SettingsPage() {
         open={isAccountSettingsOpen}
         onOpenChange={setIsAccountSettingsOpen}
       />
-    </div>
+    </>
   );
 }
