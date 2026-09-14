@@ -23,6 +23,7 @@ import {
   EyeOff,
   CheckCircle2,
 } from "lucide-react";
+import { Logo } from "@/components/shared/logo";
 
 type RegistrationStep = "email" | "otp" | "details";
 
@@ -293,7 +294,7 @@ function RegisterForm() {
 
       if (res.success) {
         toast.success("Workspace created successfully! Welcome to Cookmywork.");
-        router.push("/");
+        router.push("/dashboard");
       } else {
         setAuthError(res.error || "Registration failed");
         toast.error(res.error || "Registration failed");
@@ -314,9 +315,7 @@ function RegisterForm() {
       {step === "email" && (
         <>
           <CardHeader className="space-y-2 text-center pb-4">
-            <div className="mx-auto h-12 w-12 rounded-2xl bg-linear-to-br from-primary to-primary/80 text-primary-foreground flex items-center justify-center font-black text-2xl shadow-md ring-1 ring-primary/20">
-              C
-            </div>
+            <Logo size={52} rounded="rounded-2xl" priority className="mx-auto shadow-md ring-1 ring-border/50" />
             <CardTitle className="text-2xl font-bold tracking-tight">Create Workspace</CardTitle>
             <CardDescription className="text-sm">
               Get started with your free Cookmywork project workspace

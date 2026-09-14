@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2, ArrowRight, AlertTriangle } from "lucide-react";
+import { Logo } from "@/components/shared/logo";
 
 function LoginForm() {
   const router = useRouter();
@@ -47,7 +48,7 @@ function LoginForm() {
       const res = await login(email, password);
       if (res.success) {
         toast.success("Welcome back to Cookmywork!");
-        router.push("/");
+        router.push("/dashboard");
       } else {
         setAuthError(res.error || "Invalid email or password");
         toast.error(res.error || "Invalid email or password");
@@ -68,9 +69,7 @@ function LoginForm() {
   return (
     <Card className="w-full max-w-md shadow-lg border my-auto">
       <CardHeader className="space-y-2 text-center">
-        <div className="mx-auto h-11 w-11 rounded-xl bg-linear-to-br from-primary to-primary/80 text-primary-foreground flex items-center justify-center font-black text-xl shadow-md ring-1 ring-primary/20">
-          C
-        </div>
+        <Logo size={48} rounded="rounded-2xl" priority className="mx-auto shadow-md ring-1 ring-border/50" />
         <CardTitle className="text-2xl font-bold tracking-tight">Cookmywork</CardTitle>
         <CardDescription>
           Sign in to your task and project workspace

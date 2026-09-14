@@ -4,7 +4,7 @@ import crypto from "crypto";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const returnTo = searchParams.get("returnTo") || "/";
+  const returnTo = searchParams.get("returnTo") || "/dashboard";
 
   if (!env.google.clientId || !env.google.clientSecret) {
     // Google OAuth is not configured in .env yet

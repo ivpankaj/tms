@@ -83,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(data.data.user);
         setOrganization(data.data.organization);
         setOrganizations(data.data.organizations || [data.data.organization]);
-        router.push("/");
+        router.push("/dashboard");
         return { success: true };
       }
       return { success: false, error: data.error?.message || "Login failed" };
@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(resData.data.user);
         setOrganization(resData.data.organization);
         setOrganizations([resData.data.organization]);
-        router.push("/");
+        router.push("/dashboard");
         return { success: true };
       }
       return { success: false, error: resData.error?.message || "Registration failed" };

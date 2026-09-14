@@ -12,6 +12,15 @@ export const metadata: Metadata = {
   title: "Cookmywork - Task & Project Management Platform",
   description:
     "All-in-one task, project, and team management workspace for modern product teams.",
+  icons: {
+    icon: [
+      { url: "/icon.png", type: "image/png" },
+      { url: "/logo.png", type: "image/png" },
+      { url: "/favicon.ico" },
+    ],
+    apple: "/logo.png",
+    shortcut: "/icon.png",
+  },
 };
 
 export default function RootLayout({

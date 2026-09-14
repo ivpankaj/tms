@@ -63,6 +63,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Logo } from "./logo";
 import { CreateTaskDialog } from "./create-task-dialog";
 
 interface NavItem {
@@ -81,7 +82,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: "Main",
     items: [
-      { label: "Dashboard", href: "/", icon: LayoutDashboard },
+      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { label: "My Tasks", href: "/my-tasks", icon: CheckSquare },
       { label: "Reminders", href: "/reminders", icon: BellRing, badge: "New" },
       { label: "Inbox", href: "/inbox", icon: Inbox },
@@ -239,8 +240,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {group.items.map((item) => {
             const Icon = item.icon;
             const isActive =
-              item.href === "/"
-                ? pathname === "/"
+              item.href === "/dashboard"
+                ? pathname === "/dashboard"
                 : pathname.startsWith(item.href);
 
             const linkElement = (
@@ -295,10 +296,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background text-foreground">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-linear-to-br from-primary to-primary/80 text-primary-foreground flex items-center justify-center font-black text-xl shadow-md animate-pulse">
-            C
-          </div>
-          <p className="text-xs text-muted-foreground animate-pulse">Loading Cookmywork...</p>
+          <Logo size={56} rounded="rounded-2xl" priority className="shadow-lg animate-pulse ring-2 ring-primary/20" />
+          <p className="text-xs text-muted-foreground animate-pulse font-medium">Loading Cookmywork...</p>
         </div>
       </div>
     );
@@ -328,10 +327,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             {!isCollapsed ? (
               <>
-                <div className="flex items-center gap-2.5 overflow-hidden">
-                  <div className="h-8 w-8 rounded-lg bg-linear-to-br from-primary to-primary/80 text-primary-foreground flex items-center justify-center font-black text-sm shadow-sm ring-1 ring-primary/20 shrink-0">
-                    C
-                  </div>
+                <Link href="/dashboard" className="flex items-center gap-2.5 overflow-hidden hover:opacity-90 transition-opacity cursor-pointer">
+                  <Logo size={32} rounded="rounded-lg" priority />
                   <div className="flex flex-col overflow-hidden">
                     <div className="flex items-center gap-1.5">
                       <span className="font-bold text-sm tracking-tight text-foreground">Cookmywork</span>
@@ -341,7 +338,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     </div>
                     <span className="text-[10px] text-muted-foreground truncate">Task & Project Platform</span>
                   </div>
-                </div>
+                </Link>
 
                 <Button
                   variant="ghost"
@@ -358,11 +355,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => setIsCollapsed(false)}
-                    className="group relative h-9 w-9 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground flex items-center justify-center transition-all cursor-pointer shadow-2xs"
+                    className="group relative h-9 w-9 rounded-xl overflow-hidden flex items-center justify-center transition-all cursor-pointer border border-border/70 hover:border-primary shadow-2xs bg-black"
                     title="Expand sidebar"
                   >
-                    <span className="font-bold text-sm group-hover:hidden">C</span>
-                    <PanelLeftOpen className="h-4 w-4 hidden group-hover:block" />
+                    <Logo size={36} rounded="rounded-none" className="group-hover:opacity-25 transition-opacity" />
+                    <PanelLeftOpen className="h-4 w-4 text-white absolute inset-0 m-auto hidden group-hover:block" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right">
@@ -534,14 +531,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <SheetContent side="left" className="w-72 p-0 flex flex-col h-full bg-card">
                   {/* Mobile Drawer Header */}
                   <SheetHeader className="h-16 shrink-0 border-b border-border/70 px-4 flex justify-center text-left">
-                    <SheetTitle className="flex items-center gap-2.5 text-base font-bold">
-                      <div className="h-7 w-7 rounded-lg bg-linear-to-br from-primary to-primary/80 text-primary-foreground flex items-center justify-center font-black text-sm">
-                        C
-                      </div>
-                      <div className="flex flex-col">
-                        <span>Cookmywork</span>
-                        <span className="text-[10px] font-normal text-muted-foreground">Task & Project Management</span>
-                      </div>
+                    <SheetTitle asChild>
+                      <Link
+                        href="/dashboard"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="flex items-center gap-2.5 text-base font-bold hover:opacity-90 transition-opacity cursor-pointer"
+                      >
+                        <Logo size={28} rounded="rounded-lg" />
+                        <div className="flex flex-col">
+                          <span>Cookmywork</span>
+                          <span className="text-[10px] font-normal text-muted-foreground">Task & Project Management</span>
+                        </div>
+                      </Link>
                     </SheetTitle>
                   </SheetHeader>
 
