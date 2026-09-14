@@ -114,7 +114,7 @@ export async function authenticateRequest(
       },
     };
   } catch (error: any) {
-    console.error("[CookMyWork API Auth Error]:", error);
+    console.error("[Cookmywork API Auth Error]:", error);
     return {
       errorResponse: apiError("Internal authentication error", "INTERNAL_ERROR", 500),
     };

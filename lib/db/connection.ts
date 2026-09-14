@@ -32,7 +32,7 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
     cached.promise = (async () => {
       // 1. Cloud MongoDB (e.g. MongoDB Atlas)
       if (isCloudCluster) {
-        console.log("[CookMyWork] Connecting to MongoDB Atlas Cluster...");
+        console.log("[Cookmywork] Connecting to MongoDB Atlas Cluster...");
         return await mongoose.connect(mongoUri, {
           bufferCommands: false,
           serverSelectionTimeoutMS: 10000,
@@ -50,10 +50,10 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
         return localConn;
       } catch (localErr: any) {
         console.warn(
-          `[CookMyWork] Local MongoDB at ${mongoUri} not reachable (${localErr.message || "Connection refused"}).`
+          `[Cookmywork] Local MongoDB at ${mongoUri} not reachable (${localErr.message || "Connection refused"}).`
         );
         console.log(
-          "[CookMyWork] Auto-starting embedded in-memory MongoDB engine for seamless instant development..."
+          "[Cookmywork] Auto-starting embedded in-memory MongoDB engine for seamless instant development..."
         );
 
         // 3. Fallback to embedded in-memory MongoDB
@@ -63,7 +63,7 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
         }
 
         const embeddedUri = cached.memoryServer.getUri();
-        console.log(`[CookMyWork] Embedded MongoDB running at: ${embeddedUri}`);
+        console.log(`[Cookmywork] Embedded MongoDB running at: ${embeddedUri}`);
 
         return await mongoose.connect(embeddedUri, {
           bufferCommands: false,
@@ -77,7 +77,7 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
         return m;
       })
       .catch((err) => {
-        console.error("[CookMyWork] Database connection failed:", err.message);
+        console.error("[Cookmywork] Database connection failed:", err.message);
         cached.promise = null;
         throw err;
       });

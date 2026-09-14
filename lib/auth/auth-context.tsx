@@ -31,7 +31,7 @@ interface AuthContextType {
   isLoading: boolean;
   isLoaded: boolean;
   login: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
-  register: (data: { name: string; email: string; password: string; organizationName: string }) => Promise<{ success: boolean; error?: string }>;
+  register: (data: { name?: string; email: string; password: string; organizationName?: string; verificationToken?: string }) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   switchOrganization: (orgId: string) => Promise<void>;
   hasPermission: (permission: string) => boolean;
@@ -92,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async (data: { name: string; email: string; password: string; organizationName: string }) => {
+  const register = async (data: { name?: string; email: string; password: string; organizationName?: string; verificationToken?: string }) => {
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",

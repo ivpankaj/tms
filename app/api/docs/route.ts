@@ -4,7 +4,7 @@ export async function GET() {
   const openApiSpec = {
     openapi: "3.0.3",
     info: {
-      title: "CookMyWork REST API",
+      title: "Cookmywork REST API",
       version: "1.0.0",
       description:
         "Production-grade, multi-tenant API documentation for Workspace, Tasks, Projects, Teams, and Automation.",

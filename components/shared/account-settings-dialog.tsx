@@ -267,7 +267,7 @@ export function AccountSettingsDialog({
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Upload an image (PNG, JPG, WebP) to display across CookMyWork.
+                  Upload an image (PNG, JPG, WebP) to display across Cookmywork.
                 </p>
 
                 <div className="flex items-center justify-center sm:justify-start gap-2 pt-1 flex-wrap">

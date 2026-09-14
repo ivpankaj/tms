@@ -1177,3 +1177,29 @@ const ApiKeySchema = new Schema<IApiKey>(
 export const ApiKey: Model<IApiKey> =
   mongoose.models.ApiKey || mongoose.model<IApiKey>("ApiKey", ApiKeySchema);
 
+// 24. OtpVerification
+export interface IOtpVerification extends Document {
+  email: string;
+  otp: string;
+  expiresAt: Date;
+  verified: boolean;
+  attempts: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const OtpVerificationSchema = new Schema<IOtpVerification>(
+  {
+    email: { type: String, required: true, index: true },
+    otp: { type: String, required: true },
+    expiresAt: { type: Date, required: true, index: { expires: 0 } },
+    verified: { type: Boolean, default: false },
+    attempts: { type: Number, default: 0 },
+  },
+  { timestamps: true }
+);
+
+export const OtpVerification: Model<IOtpVerification> =
+  mongoose.models.OtpVerification ||
+  mongoose.model<IOtpVerification>("OtpVerification", OtpVerificationSchema);
+

@@ -46,7 +46,7 @@ function LoginForm() {
     try {
       const res = await login(email, password);
       if (res.success) {
-        toast.success("Welcome back to CookMyWork!");
+        toast.success("Welcome back to Cookmywork!");
         router.push("/");
       } else {
         setAuthError(res.error || "Invalid email or password");
@@ -66,12 +66,12 @@ function LoginForm() {
   };
 
   return (
-    <Card className="w-full max-w-md shadow-lg border">
+    <Card className="w-full max-w-md shadow-lg border my-auto">
       <CardHeader className="space-y-2 text-center">
         <div className="mx-auto h-11 w-11 rounded-xl bg-linear-to-br from-primary to-primary/80 text-primary-foreground flex items-center justify-center font-black text-xl shadow-md ring-1 ring-primary/20">
           C
         </div>
-        <CardTitle className="text-2xl font-bold tracking-tight">CookMyWork</CardTitle>
+        <CardTitle className="text-2xl font-bold tracking-tight">Cookmywork</CardTitle>
         <CardDescription>
           Sign in to your task and project workspace
         </CardDescription>
@@ -186,7 +186,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-muted/20">
+    <div className="min-h-dvh min-h-screen w-full flex flex-col items-center justify-center py-8 px-4 sm:py-12 bg-muted/20 overflow-y-auto">
       <Suspense
         fallback={
           <Card className="w-full max-w-md p-8 flex items-center justify-center">

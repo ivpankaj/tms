@@ -1,12 +1,12 @@
-# CookMyWork — Production-Grade Multi-Tenant Workspace & CRM
+# Cookmywork — Production-Grade Multi-Tenant Workspace & CRM
 
-![CookMyWork Architecture](https://img.shields.io/badge/Architecture-Next.js%2016%20App%20Router-black?style=flat-square)
+![Cookmywork Architecture](https://img.shields.io/badge/Architecture-Next.js%2016%20App%20Router-black?style=flat-square)
 ![TypeScript](https://img.shields.io/badge/TypeScript-Strict%20Mode-blue?style=flat-square)
 ![UI](https://img.shields.io/badge/UI-shadcn%2Fui%20Primitives-black?style=flat-square)
 ![Database](https://img.shields.io/badge/Database-MongoDB%20%2B%20Mongoose-green?style=flat-square)
 ![Testing](https://img.shields.io/badge/Tests-Jest%20Passed-brightgreen?style=flat-square)
 
-`CookMyWork` is a full-featured, multi-tenant workspace, task, and project management platform built with Next.js 16 App Router, TypeScript (strict mode), shadcn/ui design primitives, MongoDB Mongoose ODM, TanStack Query, Recharts, and role-based access control (RBAC).
+`Cookmywork` is a full-featured, multi-tenant workspace, task, and project management platform built with Next.js 16 App Router, TypeScript (strict mode), shadcn/ui design primitives, MongoDB Mongoose ODM, TanStack Query, Recharts, and role-based access control (RBAC).
 
 ---
 
@@ -87,14 +87,14 @@
 
 ## Quick Start (Docker Compose)
 
-The easiest way to run the entire CookMyWork stack (Next.js application, MongoDB 7, and Mongo Express):
+The easiest way to run the entire Cookmywork stack (Next.js application, MongoDB 7, and Mongo Express):
 
 ```bash
 # 1. Clone repository and start Docker services
 docker-compose up --build -d
 
 # 2. Access the services
-# CookMyWork Application: http://localhost:3000
+# Cookmywork Application: http://localhost:3000
 # Mongo Express Admin:    http://localhost:8081
 ```
 

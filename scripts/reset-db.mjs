@@ -36,11 +36,11 @@ async function reset() {
     console.log(` - Cleared ${col.name}: ${result.deletedCount} documents removed`);
   }
 
-  console.log("\nInitializing fresh CookMyWork workspace...");
+  console.log("\nInitializing fresh Cookmywork workspace...");
 
   // 1. Organization
   const orgResult = await db.collection("organizations").insertOne({
-    name: "CookMyWork",
+    name: "Cookmywork",
     slug: "cookmywork",
     logo: "/avatars/cookmywork.png",
     timezone: "UTC",
@@ -52,12 +52,12 @@ async function reset() {
     updatedAt: new Date(),
   });
   const orgId = orgResult.insertedId;
-  console.log(` + Created Organization: CookMyWork (ID: ${orgId})`);
+  console.log(` + Created Organization: Cookmywork (ID: ${orgId})`);
 
   // 2. Super Admin User
   const passwordHash = await bcrypt.hash("Password123!", 10);
   const userResult = await db.collection("users").insertOne({
-    name: "CookMyWork Admin",
+    name: "Cookmywork Admin",
     email: "admin@cookmywork.com",
     passwordHash,
     role: "Super Admin",
@@ -131,7 +131,7 @@ async function reset() {
   );
   console.log(" + Created default workspace tags");
 
-  console.log("\n[SUCCESS] All dummy data wiped completely! CookMyWork workspace is 100% clean and fresh.");
+  console.log("\n[SUCCESS] All dummy data wiped completely! Cookmywork workspace is 100% clean and fresh.");
   await mongoose.disconnect();
 }
 

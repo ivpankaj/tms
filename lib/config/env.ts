@@ -1,5 +1,5 @@
 /**
- * CookMyWork Centralized Environment Configuration
+ * Cookmywork Centralized Environment Configuration
  * 
  * Provides type-safe access to all environment variables and sensitive credentials.
  * Reads directly from process.env with fallback mechanisms for safe local development.

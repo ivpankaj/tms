@@ -33,7 +33,7 @@ export async function seedDatabase(force: boolean = false): Promise<void> {
     return;
   }
 
-  console.log("[CookMyWork] Initializing clean fresh database workspace...");
+  console.log("[Cookmywork] Initializing clean fresh database workspace...");
 
   if (force || orgCount === 0) {
     await Promise.all([
@@ -62,9 +62,9 @@ export async function seedDatabase(force: boolean = false): Promise<void> {
     ]);
   }
 
-  // 1. Fresh CookMyWork Organization
+  // 1. Fresh Cookmywork Organization
   const cookOrg = await Organization.create({
-    name: "CookMyWork",
+    name: "Cookmywork",
     slug: "cookmywork",
     logo: "/avatars/cookmywork.png",
     timezone: "UTC",
@@ -75,10 +75,10 @@ export async function seedDatabase(force: boolean = false): Promise<void> {
 
   const orgId = cookOrg._id;
 
-  // 2. Fresh CookMyWork Super Admin User
+  // 2. Fresh Cookmywork Super Admin User
   const passwordHash = await bcrypt.hash("Password123!", 10);
   const adminUser = await User.create({
-    name: "CookMyWork Admin",
+    name: "Cookmywork Admin",
     email: "admin@cookmywork.com",
     passwordHash,
     role: "Super Admin",
@@ -140,5 +140,5 @@ export async function seedDatabase(force: boolean = false): Promise<void> {
     )
   );
 
-  console.log("[CookMyWork] Fresh workspace initialized successfully! (No dummy data)");
+  console.log("[Cookmywork] Fresh workspace initialized successfully! (No dummy data)");
 }

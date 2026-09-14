@@ -134,6 +134,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [isLoading, user, router]);
 
+  // Lock window scrolling for pinned web-app dashboard layout
+  useEffect(() => {
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    const prevBodyOverflow = document.body.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    window.scrollTo(0, 0);
+
+    return () => {
+      document.documentElement.style.overflow = prevHtmlOverflow;
+      document.body.style.overflow = prevBodyOverflow;
+    };
+  }, []);
+
   // Global 'C' shortcut to create task
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -271,7 +285,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="h-10 w-10 rounded-xl bg-linear-to-br from-primary to-primary/80 text-primary-foreground flex items-center justify-center font-black text-xl shadow-md animate-pulse">
             C
           </div>
-          <p className="text-xs text-muted-foreground animate-pulse">Loading CookMyWork...</p>
+          <p className="text-xs text-muted-foreground animate-pulse">Loading Cookmywork...</p>
         </div>
       </div>
     );
@@ -283,8 +297,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <TooltipProvider>
-      {/* Pinned Viewport Container - Prevents whole-page scrolling */}
-      <div className="h-dvh h-screen w-full overflow-hidden flex bg-background text-foreground">
+      {/* Pinned Viewport Container - Prevents whole-page scrolling and bottom gap */}
+      <div className="fixed inset-0 h-dvh h-screen w-screen overflow-hidden flex bg-background text-foreground z-0">
         {/* ========================================================================= */}
         {/* DESKTOP SIDEBAR (Pinned, Fixed Height, Independent Internal Scroll) */}
         {/* ========================================================================= */}
@@ -302,7 +316,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </div>
                 <div className="flex flex-col overflow-hidden">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-sm tracking-tight text-foreground">CookMyWork</span>
+                    <span className="font-bold text-sm tracking-tight text-foreground">Cookmywork</span>
                     <Badge variant="secondary" className="text-[9px] font-mono px-1 py-0 uppercase">
                       Pro
                     </Badge>
@@ -405,7 +419,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-background" />
                       </div>
                       <div className="overflow-hidden flex-1">
-                        <p className="text-xs font-semibold truncate leading-tight">{user?.name || "CookMyWork Admin"}</p>
+                        <p className="text-xs font-semibold truncate leading-tight">{user?.name || "Cookmywork Admin"}</p>
                         <p className="text-[10px] text-muted-foreground truncate">{user?.role || "Super Admin"}</p>
                       </div>
                       <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
@@ -482,7 +496,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         C
                       </div>
                       <div className="flex flex-col">
-                        <span>CookMyWork</span>
+                        <span>Cookmywork</span>
                         <span className="text-[10px] font-normal text-muted-foreground">Task & Project Management</span>
                       </div>
                     </SheetTitle>
@@ -629,7 +643,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-xs font-semibold leading-none">{user?.name || "CookMyWork Admin"}</p>
+                      <p className="text-xs font-semibold leading-none">{user?.name || "Cookmywork Admin"}</p>
                       <p className="text-[11px] leading-none text-muted-foreground">{user?.email || "admin@cookmywork.com"}</p>
                       <div className="pt-1">
                         <Badge variant="secondary" className="text-[10px] font-normal">

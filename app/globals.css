@@ -133,16 +133,15 @@
 
 html {
   font-size: 18px; /* Increases root font size by 2px (from 16px to 18px), scaling all typography proportionately across the app */
-  height: 100%;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
   font-size: 1rem;
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
+  overflow-x: hidden;
 }
 
 /* Boost micro-pixel classes by 2px */

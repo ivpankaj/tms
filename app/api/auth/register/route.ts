@@ -11,35 +11,56 @@ export async function POST(req: NextRequest) {
   try {
     await connectToDatabase();
     const body = await req.json();
-    const { name, email, password, organizationName } = body;
+    const { name, email, password, organizationName, verificationToken } = body;
 
-    if (!name || !email || !password || !organizationName) {
-      return apiError("Missing required fields", "VALIDATION_ERROR", 400);
+    if (!email || !password) {
+      return apiError("Email and password are required", "VALIDATION_ERROR", 400);
+    }
+
+    if (password.length < 6) {
+      return apiError("Password must be at least 6 characters long", "VALIDATION_ERROR", 400);
     }
 
     const cleanEmail = email.toLowerCase().trim();
+
+    // Verify cryptographic token if provided
+    if (verificationToken) {
+      const { verifyVerificationToken } = await import("@/lib/auth/jwt");
+      const verifiedPayload = verifyVerificationToken(verificationToken);
+      if (!verifiedPayload || verifiedPayload.email !== cleanEmail) {
+        return apiError("Email verification session has expired. Please verify again.", "INVALID_TOKEN", 403);
+      }
+    }
+
     const existing = await User.findOne({ email: cleanEmail, isDeleted: false });
     if (existing) {
       return apiError("A user with this email already exists", "USER_EXISTS", 409);
     }
 
+    const resolvedName = (name && name.trim()) || cleanEmail.split("@")[0];
+    const resolvedOrgName = (organizationName && organizationName.trim()) || `${resolvedName}'s Workspace`;
+
     // Create organization
-    const slug = organizationName.toLowerCase().replace(/[^a-z0-9]/g, "-") + "-" + Math.floor(Math.random() * 1000);
+    const slug = resolvedOrgName.toLowerCase().replace(/[^a-z0-9]/g, "-") + "-" + Math.floor(Math.random() * 1000);
     const org = await Organization.create({
-      name: organizationName,
+      name: resolvedOrgName,
       slug,
       billingPlan: "starter",
     });
 
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await User.create({
-      name,
+      name: resolvedName,
       email: cleanEmail,
       passwordHash,
       role: "Super Admin",
       organizationId: org._id,
       status: "active",
     });
+
+    // Cleanup OTP records
+    const { OtpVerification } = await import("@/lib/db/models");
+    await OtpVerification.deleteMany({ email: cleanEmail }).catch(() => {});
 
     // Initialize workspace default pipeline and tags
     await initializeWorkspaceDefaults(org._id, user._id);

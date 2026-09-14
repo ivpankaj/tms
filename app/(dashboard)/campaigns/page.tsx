@@ -133,7 +133,7 @@ export default function CampaignsPage() {
   const [templateSubject, setTemplateSubject] = useState("");
   const [templateCategory, setTemplateCategory] = useState("Marketing");
   const [templateBody, setTemplateBody] = useState(
-    "Hi {{first_name}},\n\nWe wanted to share some exciting news regarding your account with CookMyWork.\n\nBest regards,\nCookMyWork Team"
+    "Hi {{first_name}},\n\nWe wanted to share some exciting news regarding your account with Cookmywork.\n\nBest regards,\nCookmywork Team"
   );
 
   // Detail / Analytics Drawer state
@@ -791,7 +791,7 @@ export default function CampaignsPage() {
                 Email Subject Line
               </label>
               <Input
-                placeholder="e.g. Accelerating your team's workflow with CookMyWork"
+                placeholder="e.g. Accelerating your team's workflow with Cookmywork"
                 value={templateSubject}
                 onChange={(e) => setTemplateSubject(e.target.value)}
                 required
