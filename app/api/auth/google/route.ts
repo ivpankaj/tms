@@ -13,16 +13,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(fallbackUrl);
   }
 
+  const origin = req.nextUrl.origin;
+  const redirectUri =
+    process.env.GOOGLE_REDIRECT_URI ||
+    `${origin}/api/auth/google/callback`;
+
   const state = Buffer.from(
     JSON.stringify({
       returnTo,
+      redirectUri,
       nonce: crypto.randomBytes(16).toString("hex"),
     })
   ).toString("base64url");
 
   const googleAuthUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   googleAuthUrl.searchParams.set("client_id", env.google.clientId);
-  googleAuthUrl.searchParams.set("redirect_uri", env.google.redirectUri);
+  googleAuthUrl.searchParams.set("redirect_uri", redirectUri);
   googleAuthUrl.searchParams.set("response_type", "code");
   googleAuthUrl.searchParams.set("scope", "openid email profile");
   googleAuthUrl.searchParams.set("access_type", "offline");

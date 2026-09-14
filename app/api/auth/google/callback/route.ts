@@ -24,11 +24,18 @@ export async function GET(req: NextRequest) {
   const stateRaw = searchParams.get("state");
 
   let returnTo = "/";
+  let redirectUri =
+    process.env.GOOGLE_REDIRECT_URI ||
+    `${req.nextUrl.origin}/api/auth/google/callback`;
+
   if (stateRaw) {
     try {
       const parsedState = JSON.parse(Buffer.from(stateRaw, "base64url").toString("utf-8"));
       if (parsedState.returnTo && typeof parsedState.returnTo === "string") {
         returnTo = parsedState.returnTo;
+      }
+      if (parsedState.redirectUri && typeof parsedState.redirectUri === "string") {
+        redirectUri = parsedState.redirectUri;
       }
     } catch {
       // ignore state parse errors
@@ -37,13 +44,13 @@ export async function GET(req: NextRequest) {
 
   if (error) {
     console.error("[Google OAuth Callback Error]:", error);
-    const errUrl = new URL("/login", env.app.url);
+    const errUrl = new URL("/login", req.nextUrl.origin);
     errUrl.searchParams.set("error", error);
     return NextResponse.redirect(errUrl);
   }
 
   if (!code) {
-    const errUrl = new URL("/login", env.app.url);
+    const errUrl = new URL("/login", req.nextUrl.origin);
     errUrl.searchParams.set("error", "missing_code");
     return NextResponse.redirect(errUrl);
   }
@@ -57,7 +64,7 @@ export async function GET(req: NextRequest) {
         code,
         client_id: env.google.clientId,
         client_secret: env.google.clientSecret,
-        redirect_uri: env.google.redirectUri,
+        redirect_uri: redirectUri,
         grant_type: "authorization_code",
       }),
     });
