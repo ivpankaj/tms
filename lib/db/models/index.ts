@@ -1203,3 +1203,58 @@ export const OtpVerification: Model<IOtpVerification> =
   mongoose.models.OtpVerification ||
   mongoose.model<IOtpVerification>("OtpVerification", OtpVerificationSchema);
 
+// 25. Reminder
+export interface IReminder extends Document, BaseEntity {
+  userId: mongoose.Types.ObjectId;
+  title: string;
+  description?: string;
+  reminderTime: Date;
+  priority: "Low" | "Medium" | "High" | "Urgent";
+  status: "Pending" | "Completed" | "Cancelled";
+  emailSent: boolean;
+  emailSentAt?: Date;
+  notifiedInApp: boolean;
+  category: "Work" | "Personal" | "Meeting" | "Deadline" | "Follow-up";
+  tags: string[];
+}
+
+const ReminderSchema = new Schema<IReminder>(
+  {
+    organizationId: { type: Schema.Types.ObjectId, ref: "Organization", required: true, index: true },
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    title: { type: String, required: true, trim: true },
+    description: { type: String, trim: true },
+    reminderTime: { type: Date, required: true, index: true },
+    priority: {
+      type: String,
+      enum: ["Low", "Medium", "High", "Urgent"],
+      default: "Medium",
+      index: true,
+    },
+    status: {
+      type: String,
+      enum: ["Pending", "Completed", "Cancelled"],
+      default: "Pending",
+      index: true,
+    },
+    emailSent: { type: Boolean, default: false, index: true },
+    emailSentAt: { type: Date },
+    notifiedInApp: { type: Boolean, default: false },
+    category: {
+      type: String,
+      enum: ["Work", "Personal", "Meeting", "Deadline", "Follow-up"],
+      default: "Work",
+      index: true,
+    },
+    tags: [{ type: String }],
+    isDeleted: { type: Boolean, default: false, index: true },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User" },
+  },
+  { timestamps: true }
+);
+
+export const Reminder: Model<IReminder> =
+  mongoose.models.Reminder ||
+  mongoose.model<IReminder>("Reminder", ReminderSchema);
+
+

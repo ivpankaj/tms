@@ -161,3 +161,116 @@ export async function sendOtpEmail(email: string, otp: string): Promise<SendEmai
     text,
   });
 }
+
+export interface TaskReminderEmailOptions {
+  email: string;
+  userName?: string;
+  taskTitle: string;
+  description?: string;
+  reminderTime: Date | string;
+  priority?: "Low" | "Medium" | "High" | "Urgent";
+  category?: string;
+}
+
+/**
+ * Dispatches an automated email reminder for a scheduled task.
+ */
+export async function sendTaskReminderEmail(options: TaskReminderEmailOptions): Promise<SendEmailResult> {
+  const { email, userName, taskTitle, description, reminderTime, priority = "Medium", category = "Task" } = options;
+  const formattedTime = new Date(reminderTime).toLocaleString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  const priorityColors: Record<string, { bg: string; text: string; border: string }> = {
+    Urgent: { bg: "#fef2f2", text: "#dc2626", border: "#fecaca" },
+    High: { bg: "#fffbeb", text: "#d97706", border: "#fde68a" },
+    Medium: { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe" },
+    Low: { bg: "#f8fafc", text: "#64748b", border: "#e2e8f0" },
+  };
+
+  const pColor = priorityColors[priority] || priorityColors.Medium;
+
+  const subject = `⏰ Reminder: ${taskTitle}`;
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task Reminder</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; }
+    .container { max-width: 540px; margin: 40px auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+    .header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 28px 24px; text-align: center; }
+    .logo { display: inline-block; width: 42px; height: 42px; line-height: 42px; background: #3b82f6; color: #ffffff; border-radius: 12px; font-weight: 900; font-size: 20px; }
+    .header-title { color: #ffffff; font-size: 19px; font-weight: 700; margin: 12px 0 2px; }
+    .header-subtitle { color: #94a3b8; font-size: 12px; margin: 0; }
+    .content { padding: 32px 28px; }
+    .greeting { font-size: 15px; color: #334155; margin-bottom: 16px; font-weight: 600; }
+    .intro { font-size: 14px; color: #64748b; line-height: 1.5; margin: 0 0 20px; }
+    .task-card { background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #3b82f6; border-radius: 12px; padding: 20px; margin: 20px 0; }
+    .task-title { font-size: 18px; font-weight: 700; color: #0f172a; margin: 0 0 10px; }
+    .task-desc { font-size: 14px; color: #475569; line-height: 1.6; margin: 0 0 16px; white-space: pre-wrap; }
+    .meta-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; }
+    .pill { display: inline-block; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; }
+    .time-badge { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; }
+    .btn-container { text-align: center; margin: 32px 0 16px; }
+    .btn { display: inline-block; background: #0f172a; color: #ffffff !important; padding: 12px 28px; border-radius: 10px; font-size: 14px; font-weight: 600; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px; text-align: center; font-size: 12px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">C</div>
+      <div class="header-title">Cookmywork</div>
+      <p class="header-subtitle">Task Reminder & Notification</p>
+    </div>
+    <div class="content">
+      <p class="greeting">Hi ${userName || "there"},</p>
+      <p class="intro">This is a scheduled reminder for your task:</p>
+      
+      <div class="task-card">
+        <div class="task-title">🔔 ${taskTitle}</div>
+        ${description ? `<div class="task-desc">${description}</div>` : ""}
+        
+        <div class="meta-row">
+          <span class="pill time-badge">⏰ ${formattedTime}</span>
+          <span class="pill" style="background: ${pColor.bg}; color: ${pColor.text}; border: 1px solid ${pColor.border};">
+            ${priority} Priority
+          </span>
+          <span class="pill" style="background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;">
+            📁 ${category}
+          </span>
+        </div>
+      </div>
+
+      <div class="btn-container">
+        <a href="http://localhost:3200/reminders" class="btn">Open Reminders in Cookmywork &rarr;</a>
+      </div>
+    </div>
+    <div class="footer">
+      You are receiving this reminder because you scheduled it in your Cookmywork workspace.<br>
+      &copy; ${new Date().getFullYear()} Cookmywork. All rights reserved.
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  const text = `Reminder: ${taskTitle}\nScheduled for: ${formattedTime}\nPriority: ${priority}\nDescription: ${description || "No description provided."}\nView your reminders at: http://localhost:3200/reminders`;
+
+  return sendEmail({
+    to: email,
+    subject,
+    html,
+    text,
+  });
+}
+

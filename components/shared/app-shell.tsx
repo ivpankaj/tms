@@ -36,6 +36,7 @@ import {
   Timer,
   Zap,
   User,
+  BellRing,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -82,6 +83,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Dashboard", href: "/", icon: LayoutDashboard },
       { label: "My Tasks", href: "/my-tasks", icon: CheckSquare },
+      { label: "Reminders", href: "/reminders", icon: BellRing, badge: "New" },
       { label: "Inbox", href: "/inbox", icon: Inbox },
       { label: "Calendar", href: "/calendar", icon: CalendarIcon },
     ],
@@ -200,6 +202,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     },
   });
 
+  // Periodically process due reminders in background (every 30 seconds)
+  useQuery({
+    queryKey: ["process-due-reminders"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/reminders/process", { method: "POST" });
+      return res.json();
+    },
+    refetchInterval: 30000,
+    enabled: Boolean(user),
+  });
+
   const handleLogout = async () => {
     await logout();
     router.push("/login");
@@ -253,7 +266,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <span className="truncate flex-1">{item.label}</span>
                 )}
                 {!collapsed && item.badge && (
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-semibold">
                     {item.badge}
                   </Badge>
                 )}
@@ -308,37 +321,55 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           }`}
         >
           {/* Top Brand Header & Collapse Action */}
-          <div className="h-16 shrink-0 border-b border-border/70 px-3.5 flex items-center justify-between gap-2">
+          <div
+            className={`h-16 shrink-0 border-b border-border/70 flex items-center ${
+              isCollapsed ? "justify-center px-2" : "justify-between px-3.5 gap-2"
+            }`}
+          >
             {!isCollapsed ? (
-              <div className="flex items-center gap-2.5 overflow-hidden">
-                <div className="h-8 w-8 rounded-lg bg-linear-to-br from-primary to-primary/80 text-primary-foreground flex items-center justify-center font-black text-sm shadow-sm ring-1 ring-primary/20 shrink-0">
-                  C
-                </div>
-                <div className="flex flex-col overflow-hidden">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-sm tracking-tight text-foreground">Cookmywork</span>
-                    <Badge variant="secondary" className="text-[9px] font-mono px-1 py-0 uppercase">
-                      Pro
-                    </Badge>
+              <>
+                <div className="flex items-center gap-2.5 overflow-hidden">
+                  <div className="h-8 w-8 rounded-lg bg-linear-to-br from-primary to-primary/80 text-primary-foreground flex items-center justify-center font-black text-sm shadow-sm ring-1 ring-primary/20 shrink-0">
+                    C
                   </div>
-                  <span className="text-[10px] text-muted-foreground truncate">Task & Project Platform</span>
+                  <div className="flex flex-col overflow-hidden">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-sm tracking-tight text-foreground">Cookmywork</span>
+                      <Badge variant="secondary" className="text-[9px] font-mono px-1 py-0 uppercase">
+                        Pro
+                      </Badge>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground truncate">Task & Project Platform</span>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="mx-auto h-8 w-8 rounded-lg bg-linear-to-br from-primary to-primary/80 text-primary-foreground flex items-center justify-center font-black text-sm shadow-sm shrink-0">
-                C
-              </div>
-            )}
 
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0"
-              title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              {isCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-            </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsCollapsed(true)}
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
+                  title="Collapse sidebar"
+                >
+                  <PanelLeftClose className="h-4 w-4" />
+                </Button>
+              </>
+            ) : (
+              <Tooltip delayDuration={50}>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setIsCollapsed(false)}
+                    className="group relative h-9 w-9 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground flex items-center justify-center transition-all cursor-pointer shadow-2xs"
+                    title="Expand sidebar"
+                  >
+                    <span className="font-bold text-sm group-hover:hidden">C</span>
+                    <PanelLeftOpen className="h-4 w-4 hidden group-hover:block" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  Expand sidebar
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
 
           {/* Workspace Switcher */}
@@ -479,8 +510,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
           {/* Top Sticky Navbar */}
           <header className="h-16 shrink-0 border-b border-border/70 bg-background/90 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between gap-3 sticky top-0 z-30">
-            {/* Left: Mobile Drawer Trigger + Global Search */}
-            <div className="flex items-center gap-2.5">
+            {/* Left: Desktop Expand Toggle when collapsed + Mobile Drawer Trigger + Global Search */}
+            <div className="flex items-center gap-2">
+              {isCollapsed && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsCollapsed(false)}
+                  className="hidden md:inline-flex h-9 w-9 text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
+                  title="Expand sidebar"
+                >
+                  <PanelLeftOpen className="h-4 w-4" />
+                </Button>
+              )}
+
               {/* Mobile Drawer (Sheet) */}
               <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                 <SheetTrigger asChild>
