@@ -9,9 +9,9 @@ import { Toaster } from "@/components/ui/sonner";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Cookmywork - Task & Project Management Platform",
+  title: "Cookmywork - Task & Project Management Workspace",
   description:
-    "All-in-one task, project, and team management workspace for modern product teams.",
+    "The unified workspace for modern product teams to plan sprints, track Kanban boards, automate smart email reminders, and balance workload with zero clutter.",
   icons: {
     icon: [
       { url: "/icon.png", type: "image/png" },
