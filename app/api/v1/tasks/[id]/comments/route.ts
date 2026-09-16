@@ -16,7 +16,8 @@ export async function GET(
     isDeleted: false,
   })
     .populate("userId", "name email avatar role")
-    .sort({ createdAt: 1 });
+    .sort({ createdAt: 1 })
+    .lean();
 
   return apiSuccess(comments);
 }
@@ -80,10 +81,9 @@ export async function POST(
       });
     }
 
-    const populated = await Comment.findById(comment._id).populate(
-      "userId",
-      "name email avatar role"
-    );
+    const populated = await Comment.findById(comment._id)
+      .populate("userId", "name email avatar role")
+      .lean();
 
     return apiSuccess(populated, undefined, 201);
   } catch (err: any) {

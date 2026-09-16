@@ -22,7 +22,8 @@ export async function GET(
     .populate("reporterId", "name email avatar")
     .populate("projectId", "name key color")
     .populate("teamId", "name color")
-    .populate("dependencies.taskId", "title status priority");
+    .populate("dependencies.taskId", "title status priority")
+    .lean();
 
   if (!task) {
     return apiError("Task not found", "NOT_FOUND", 404);
@@ -41,16 +42,6 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await req.json();
-
-    const task = await Task.findOne({
-      _id: id,
-      organizationId: auth!.organizationId,
-      isDeleted: false,
-    });
-
-    if (!task) {
-      return apiError("Task not found", "NOT_FOUND", 404);
-    }
 
     const updates: any = {};
     const allowed = [
@@ -89,97 +80,107 @@ export async function PATCH(
       }
     }
 
-    // Check status change activity
-    if (body.status && body.status !== task.status) {
-      await Activity.create({
-        organizationId: auth!.organizationId,
-        type: body.status === "Done" || body.status === "Completed" ? "completed" : "status_change",
-        title: body.status === "Done" || body.status === "Completed" ? "Task Completed" : "Task Status Updated",
-        details: `Task status changed from "${task.status}" to "${body.status}"`,
-        entityType: "task",
-        entityId: task._id,
-        createdBy: auth!.user._id,
-      });
-
-      // If assigned to someone else, notify them
-      if (task.assignedTo && task.assignedTo.toString() !== auth!.user._id.toString()) {
-        await Notification.create({
-          organizationId: auth!.organizationId,
-          userId: task.assignedTo,
-          title: "Task Status Updated",
-          message: `${auth!.user.name} changed status of "${task.title}" to ${body.status}`,
-          type: "task",
-          link: `/tasks?selected=${task._id}`,
-          createdBy: auth!.user._id,
-        });
-      }
-    }
-
-    // Check priority change activity
-    if (body.priority && body.priority !== task.priority) {
-      await Activity.create({
-        organizationId: auth!.organizationId,
-        type: "priority_change",
-        title: "Task Priority Updated",
-        details: `Task priority changed from "${task.priority}" to "${body.priority}"`,
-        entityType: "task",
-        entityId: task._id,
-        createdBy: auth!.user._id,
-      });
-    }
-
-    // Check assignee change
-    if (body.assignedTo && body.assignedTo.toString() !== (task.assignedTo?.toString() || "")) {
-      await Activity.create({
-        organizationId: auth!.organizationId,
-        type: "assigned",
-        title: "Task Reassigned",
-        details: `Task assigned to new owner`,
-        entityType: "task",
-        entityId: task._id,
-        createdBy: auth!.user._id,
-      });
-
-      if (body.assignedTo.toString() !== auth!.user._id.toString()) {
-        await Notification.create({
-          organizationId: auth!.organizationId,
-          userId: body.assignedTo,
-          title: "Task Assigned",
-          message: `${auth!.user.name} assigned you the task: "${task.title}"`,
-          type: "task",
-          link: `/tasks?selected=${task._id}`,
-          createdBy: auth!.user._id,
-        });
-      }
-    }
-
-    const updatedTask = await Task.findOneAndUpdate(
-      { _id: id, organizationId: auth!.organizationId },
+    const updatedTask: any = await Task.findOneAndUpdate(
+      { _id: id, organizationId: auth!.organizationId, isDeleted: false },
       { $set: updates },
       { new: true }
     )
       .populate("assignedTo", "name email avatar")
       .populate("reporterId", "name email avatar")
       .populate("projectId", "name key color")
-      .populate("teamId", "name color");
+      .populate("teamId", "name color")
+      .lean();
 
-    // Recalculate project progress if linked to project
-    const projId = updatedTask?.projectId || task.projectId;
-    if (projId) {
-      const [totalProjectTasks, completedProjectTasks] = await Promise.all([
-        Task.countDocuments({ projectId: projId, isDeleted: false }),
-        Task.countDocuments({
-          projectId: projId,
-          status: { $in: ["Done", "Completed"] },
-          isDeleted: false,
-        }),
-      ]);
-      const newProgress =
-        totalProjectTasks > 0
-          ? Math.round((completedProjectTasks / totalProjectTasks) * 100)
-          : 0;
-      await Project.findByIdAndUpdate(projId, { progress: newProgress });
+    if (!updatedTask) {
+      return apiError("Task not found", "NOT_FOUND", 404);
     }
+
+    // Fire non-blocking background side-effects (Activity, Notifications, Progress calculation)
+    (async () => {
+      try {
+        // Check status change activity
+        if (body.status) {
+          await Activity.create({
+            organizationId: auth!.organizationId,
+            type: body.status === "Done" || body.status === "Completed" ? "completed" : "status_change",
+            title: body.status === "Done" || body.status === "Completed" ? "Task Completed" : "Task Status Updated",
+            details: `Task status changed to "${body.status}"`,
+            entityType: "task",
+            entityId: id,
+            createdBy: auth!.user._id,
+          });
+
+          const assigneeId = updatedTask.assignedTo?._id || updatedTask.assignedTo;
+          if (assigneeId && assigneeId.toString() !== auth!.user._id.toString()) {
+            await Notification.create({
+              organizationId: auth!.organizationId,
+              userId: assigneeId,
+              title: "Task Status Updated",
+              message: `${auth!.user.name} changed status of "${updatedTask.title}" to ${body.status}`,
+              type: "task",
+              link: `/tasks?selected=${id}`,
+              createdBy: auth!.user._id,
+            });
+          }
+        }
+
+        // Check priority change activity
+        if (body.priority) {
+          await Activity.create({
+            organizationId: auth!.organizationId,
+            type: "priority_change",
+            title: "Task Priority Updated",
+            details: `Task priority changed to "${body.priority}"`,
+            entityType: "task",
+            entityId: id,
+            createdBy: auth!.user._id,
+          });
+        }
+
+        // Check assignee change
+        if (body.assignedTo && body.assignedTo.toString() !== auth!.user._id.toString()) {
+          await Activity.create({
+            organizationId: auth!.organizationId,
+            type: "assigned",
+            title: "Task Reassigned",
+            details: `Task assigned to new owner`,
+            entityType: "task",
+            entityId: id,
+            createdBy: auth!.user._id,
+          });
+
+          await Notification.create({
+            organizationId: auth!.organizationId,
+            userId: body.assignedTo,
+            title: "Task Assigned",
+            message: `${auth!.user.name} assigned you the task: "${updatedTask.title}"`,
+            type: "task",
+            link: `/tasks?selected=${id}`,
+            createdBy: auth!.user._id,
+          });
+        }
+
+        // Recalculate project progress if linked to project
+        const projId = updatedTask.projectId?._id || updatedTask.projectId;
+        if (projId) {
+          const [totalProjectTasks, completedProjectTasks] = await Promise.all([
+            Task.countDocuments({ projectId: projId, isDeleted: false }),
+            Task.countDocuments({
+              projectId: projId,
+              status: { $in: ["Done", "Completed"] },
+              isDeleted: false,
+            }),
+          ]);
+          const newProgress =
+            totalProjectTasks > 0
+              ? Math.round((completedProjectTasks / totalProjectTasks) * 100)
+              : 0;
+          await Project.findByIdAndUpdate(projId, { progress: newProgress });
+        }
+      } catch (bgErr: any) {
+        console.warn("[Task Update Background Processing Error]:", bgErr.message);
+      }
+    })();
 
     return apiSuccess(updatedTask);
   } catch (err: any) {

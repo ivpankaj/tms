@@ -11,7 +11,8 @@ export async function GET(req: NextRequest) {
     userId: auth!.user._id,
   })
     .sort({ createdAt: -1 })
-    .limit(30);
+    .limit(30)
+    .lean();
 
   return apiSuccess(notifications);
 }

@@ -57,6 +57,9 @@ import {
   Bell,
   Paperclip,
   Image as ImageIcon,
+  FileText,
+  Folder,
+  User as UserIcon,
 } from "lucide-react";
 
 const ISSUE_TYPES = [
@@ -191,9 +194,10 @@ export function TaskDetailSheet({
       return json.success ? json.data : null;
     },
     enabled: Boolean(taskId) && open,
+    staleTime: 30 * 1000,
   });
 
-  // 2. Fetch Comments
+  // 2. Fetch Comments (only active when sheet is open and on relevant tab)
   const { data: comments = [], refetch: refetchComments } = useQuery({
     queryKey: ["task-comments", taskId],
     queryFn: async () => {
@@ -202,10 +206,11 @@ export function TaskDetailSheet({
       const json = await res.json();
       return json.success ? json.data : [];
     },
-    enabled: Boolean(taskId) && open,
+    enabled: Boolean(taskId) && open && (activeTab === "comments" || activeTab === "overview"),
+    staleTime: 20 * 1000,
   });
 
-  // 3. Fetch Activities
+  // 3. Fetch Activities (lazy loaded on activity tab)
   const { data: activities = [] } = useQuery({
     queryKey: ["task-activities", taskId],
     queryFn: async () => {
@@ -214,10 +219,11 @@ export function TaskDetailSheet({
       const json = await res.json();
       return json.success ? json.data : [];
     },
-    enabled: Boolean(taskId) && open,
+    enabled: Boolean(taskId) && open && activeTab === "activity",
+    staleTime: 30 * 1000,
   });
 
-  // 4. Fetch Users for assignee dropdown
+  // 4. Fetch Users for assignee dropdown (cached 60s)
   const { data: members = [] } = useQuery({
     queryKey: ["users-dropdown", organization?.id],
     queryFn: async () => {
@@ -226,9 +232,10 @@ export function TaskDetailSheet({
       return json.success ? json.data : [];
     },
     enabled: open,
+    staleTime: 60 * 1000,
   });
 
-  // 5. Fetch Projects
+  // 5. Fetch Projects (cached 60s)
   const { data: projects = [] } = useQuery({
     queryKey: ["projects-dropdown", organization?.id],
     queryFn: async () => {
@@ -237,9 +244,10 @@ export function TaskDetailSheet({
       return json.success ? json.data : [];
     },
     enabled: open,
+    staleTime: 60 * 1000,
   });
 
-  // 6. Fetch Timelogs
+  // 6. Fetch Timelogs (only on timelogs or overview tab)
   const { data: timelogsData } = useQuery({
     queryKey: ["task-timelogs", taskId],
     queryFn: async () => {
@@ -248,7 +256,8 @@ export function TaskDetailSheet({
       const json = await res.json();
       return json.success ? json.data : null;
     },
-    enabled: Boolean(taskId) && open,
+    enabled: Boolean(taskId) && open && (activeTab === "timelogs" || activeTab === "overview"),
+    staleTime: 30 * 1000,
   });
 
   // Log Time Mutation
@@ -296,11 +305,29 @@ export function TaskDetailSheet({
       if (!data.success) throw new Error(data.error?.message || "Failed to update task");
       return data.data;
     },
-    onSuccess: (updated) => {
-      queryClient.setQueryData(["task", taskId], updated);
+    onMutate: async (updates: any) => {
+      await queryClient.cancelQueries({ queryKey: ["task", taskId] });
+      const previousTask = queryClient.getQueryData(["task", taskId]);
+      if (previousTask) {
+        queryClient.setQueryData(["task", taskId], (old: any) => ({
+          ...old,
+          ...updates,
+        }));
+      }
+      return { previousTask };
+    },
+    onError: (err: any, _updates, context: any) => {
+      if (context?.previousTask) {
+        queryClient.setQueryData(["task", taskId], context.previousTask);
+      }
+      toast.error(err.message || "Failed to update task");
+    },
+    onSettled: (updated) => {
+      if (updated) {
+        queryClient.setQueryData(["task", taskId], updated);
+      }
       invalidateWorkspaceQueries(queryClient, { taskId, projectId: updated?.projectId?._id || updated?.projectId });
     },
-    onError: (err: any) => toast.error(err.message),
   });
 
   const addCommentMutation = useMutation({
@@ -423,79 +450,122 @@ export function TaskDetailSheet({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent side="right" className="w-full sm:max-w-2xl p-0 flex flex-col h-full bg-card">
           {/* Header Bar */}
-          <SheetHeader className="px-6 py-4 border-b shrink-0 flex flex-row items-center justify-between space-y-0">
-            <div className="flex items-center gap-2">
-              <SheetTitle className="text-sm font-bold flex items-center gap-2">
+          <SheetHeader className="px-4 sm:px-6 py-3 border-b shrink-0 flex flex-row items-center justify-between space-y-0 pr-12 sm:pr-14">
+            <div className="flex items-center gap-2 min-w-0">
+              <SheetTitle className="text-sm font-bold flex items-center gap-1.5 truncate">
                 {task?.projectId?.key ? (
-                  <Badge variant="outline" className="font-mono text-[11px] font-bold">
+                  <Badge variant="outline" className="font-mono text-[11px] font-bold shrink-0">
                     {task.projectId.key}
                   </Badge>
                 ) : task?.isPersonal ? (
-                  <Badge variant="secondary" className="text-[11px]">
-                    Personal To-Do
+                  <Badge variant="secondary" className="text-[11px] shrink-0">
+                    Personal
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="text-[11px]">
+                  <Badge variant="outline" className="text-[11px] shrink-0">
                     Task
                   </Badge>
                 )}
-                <span className="text-muted-foreground text-xs">Details</span>
+                <span className="text-muted-foreground text-xs hidden sm:inline">Details</span>
               </SheetTitle>
+
+              {/* Live Saving / Updated Indicator */}
+              {updateTaskMutation.isPending && (
+                <span className="flex items-center gap-1 text-[10px] sm:text-[11px] text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20 animate-pulse font-medium shrink-0">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span className="hidden xs:inline">Saving...</span>
+                </span>
+              )}
             </div>
 
-            <div className="flex items-center gap-2 mr-6">
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/10"
+                className="h-7 sm:h-8 px-2 sm:px-2.5 text-xs gap-1 text-primary border-primary/30 hover:bg-primary/10 cursor-pointer"
                 onClick={() => setIsReminderOpen(true)}
                 title="Schedule Reminder / Shift to Reminders"
               >
-                <Bell className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Set Reminder</span>
+                <Bell className="h-3.5 w-3.5 text-amber-500" />
+                <span className="hidden sm:inline">Reminder</span>
               </Button>
 
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs gap-1.5"
+                className="h-7 sm:h-8 px-2 sm:px-2.5 text-xs gap-1 cursor-pointer"
                 onClick={() => setIsEditOpen(true)}
                 title="Edit Task"
               >
                 <Edit3 className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Edit Task</span>
+                <span className="hidden sm:inline">Edit</span>
               </Button>
 
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                className="h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground hover:text-destructive cursor-pointer"
                 onClick={() => setIsDeleteOpen(true)}
                 title="Delete task"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </Button>
             </div>
           </SheetHeader>
 
           {isTaskLoading || !task ? (
-            <div className="flex-1 flex items-center justify-center p-8 text-muted-foreground">
-              <Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading task details...
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-muted-foreground gap-3">
+              <Loader2 className="h-7 w-7 animate-spin text-primary" />
+              <p className="text-xs font-medium animate-pulse">Loading task details...</p>
             </div>
           ) : (
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {/* Quick Status / Priority / Assignee Control Row */}
-              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 p-3 rounded-xl bg-muted/40 border text-xs">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+              {/* 1. Title Section (Top) */}
+              <div className="space-y-1">
+                {isEditingTitle ? (
+                  <Input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    onBlur={() => {
+                      setIsEditingTitle(false);
+                      if (title.trim() && title !== task.title) {
+                        updateTaskMutation.mutate({ title: title.trim() });
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        setIsEditingTitle(false);
+                        if (title.trim() && title !== task.title) {
+                          updateTaskMutation.mutate({ title: title.trim() });
+                        }
+                      }
+                    }}
+                    autoFocus
+                    className="text-base sm:text-lg font-bold w-full"
+                  />
+                ) : (
+                  <h2
+                    onClick={() => setIsEditingTitle(true)}
+                    className="text-base sm:text-xl font-bold tracking-tight text-foreground hover:bg-muted/40 p-1.5 -ml-1.5 rounded-lg cursor-pointer transition-colors break-words"
+                    title="Click to edit title"
+                  >
+                    {task.title || "Untitled Task"}
+                  </h2>
+                )}
+              </div>
+
+              {/* 2. Quick Status / Priority / Assignee Control Row */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 p-2.5 rounded-xl bg-muted/30 border text-xs">
                 {/* Issue Type */}
                 <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
                     Type
                   </span>
                   <Select
                     value={task.issueType || "task"}
                     onValueChange={(val) => updateTaskMutation.mutate({ issueType: val })}
                   >
-                    <SelectTrigger className="h-7 text-xs font-semibold">
+                    <SelectTrigger className="h-8 text-xs font-semibold w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -516,14 +586,14 @@ export function TaskDetailSheet({
 
                 {/* Status */}
                 <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
                     Status
                   </span>
                   <Select
                     value={task.status}
                     onValueChange={(val) => updateTaskMutation.mutate({ status: val })}
                   >
-                    <SelectTrigger className="h-7 text-xs font-semibold">
+                    <SelectTrigger className="h-8 text-xs font-semibold w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -538,14 +608,14 @@ export function TaskDetailSheet({
 
                 {/* Priority */}
                 <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
                     Priority
                   </span>
                   <Select
                     value={task.priority}
                     onValueChange={(val) => updateTaskMutation.mutate({ priority: val })}
                   >
-                    <SelectTrigger className="h-7 text-xs font-semibold">
+                    <SelectTrigger className="h-8 text-xs font-semibold w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -560,14 +630,14 @@ export function TaskDetailSheet({
 
                 {/* Story Points */}
                 <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
                     Points
                   </span>
                   <Select
                     value={String(task.storyPoints || 0)}
                     onValueChange={(val) => updateTaskMutation.mutate({ storyPoints: Number(val) })}
                   >
-                    <SelectTrigger className="h-7 text-xs font-semibold">
+                    <SelectTrigger className="h-8 text-xs font-semibold w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -584,7 +654,7 @@ export function TaskDetailSheet({
 
                 {/* Assignee */}
                 <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
                     Assignee
                   </span>
                   <Select
@@ -593,7 +663,7 @@ export function TaskDetailSheet({
                       updateTaskMutation.mutate({ assignedTo: val !== "none" ? val : null })
                     }
                   >
-                    <SelectTrigger className="h-7 text-xs">
+                    <SelectTrigger className="h-8 text-xs w-full">
                       <SelectValue placeholder="Unassigned" />
                     </SelectTrigger>
                     <SelectContent>
@@ -609,105 +679,70 @@ export function TaskDetailSheet({
 
                 {/* Due Date */}
                 <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
                     Due Date
                   </span>
                   <Input
                     type="date"
                     value={task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : ""}
                     onChange={(e) => updateTaskMutation.mutate({ dueDate: e.target.value || null })}
-                    className="h-7 text-xs px-2"
+                    className="h-8 text-xs px-2 w-full"
                   />
                 </div>
               </div>
 
-              {/* Title Section */}
-              <div className="space-y-2">
-                {isEditingTitle ? (
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      onBlur={() => {
-                        setIsEditingTitle(false);
-                        if (title.trim() && title !== task.title) {
-                          updateTaskMutation.mutate({ title: title.trim() });
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          setIsEditingTitle(false);
-                          if (title.trim() && title !== task.title) {
-                            updateTaskMutation.mutate({ title: title.trim() });
-                          }
-                        }
-                      }}
-                      autoFocus
-                      className="text-base font-bold"
-                    />
-                  </div>
-                ) : (
-                  <h2
-                    onClick={() => setIsEditingTitle(true)}
-                    className="text-lg font-bold tracking-tight text-foreground hover:bg-muted/40 p-1.5 -ml-1.5 rounded-lg cursor-pointer transition-colors"
-                    title="Click to edit title"
-                  >
-                    {task.title}
-                  </h2>
-                )}
-              </div>
-
-              {/* Tabs Container */}
+              {/* Tabs Container with smooth horizontal swipe on mobile */}
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full h-auto p-1 gap-1">
-                  <TabsTrigger value="overview" className="text-xs h-7">
-                    Overview
-                  </TabsTrigger>
-                  <TabsTrigger value="subtasks" className="text-xs h-7 flex items-center gap-1">
-                    Subtasks
-                    {subtasksCount > 0 && (
-                      <span className="text-[10px] bg-muted px-1.5 py-0.2 rounded-full font-mono">
-                        {subtasksCompleted}/{subtasksCount}
-                      </span>
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger value="attachments" className="text-xs h-7 flex items-center gap-1">
-                    <Paperclip className="h-3 w-3" />
-                    Files
-                    {task.attachments && task.attachments.length > 0 && (
-                      <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.2 rounded-full font-mono font-bold">
-                        {task.attachments.length}
-                      </span>
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger value="comments" className="text-xs h-7 flex items-center gap-1">
-                    Comments
-                    {comments.length > 0 && (
-                      <span className="text-[10px] bg-muted px-1.5 py-0.2 rounded-full font-mono">
-                        {comments.length}
-                      </span>
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger value="timelogs" className="text-xs h-7 flex items-center gap-1">
-                    <Timer className="h-3 w-3 text-primary" />
-                    Time Logs
-                  </TabsTrigger>
-                  <TabsTrigger value="activity" className="text-xs h-7">
-                    Activity
-                  </TabsTrigger>
-                </TabsList>
+                <div className="w-full overflow-x-auto no-scrollbar border-b pb-1">
+                  <TabsList className="flex items-center justify-start w-max min-w-full h-auto p-1 gap-1 bg-muted/50 rounded-xl">
+                    <TabsTrigger value="overview" className="text-xs h-7 px-3 shrink-0">
+                      Overview
+                    </TabsTrigger>
+                    <TabsTrigger value="subtasks" className="text-xs h-7 px-3 shrink-0 flex items-center gap-1">
+                      Subtasks
+                      {subtasksCount > 0 && (
+                        <span className="text-[10px] bg-muted px-1.5 py-0.2 rounded-full font-mono">
+                          {subtasksCompleted}/{subtasksCount}
+                        </span>
+                      )}
+                    </TabsTrigger>
+                    <TabsTrigger value="attachments" className="text-xs h-7 px-3 shrink-0 flex items-center gap-1">
+                      <Paperclip className="h-3 w-3" />
+                      Files
+                      {task.attachments && task.attachments.length > 0 && (
+                        <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.2 rounded-full font-mono font-bold">
+                          {task.attachments.length}
+                        </span>
+                      )}
+                    </TabsTrigger>
+                    <TabsTrigger value="comments" className="text-xs h-7 px-3 shrink-0 flex items-center gap-1">
+                      Comments
+                      {comments.length > 0 && (
+                        <span className="text-[10px] bg-muted px-1.5 py-0.2 rounded-full font-mono">
+                          {comments.length}
+                        </span>
+                      )}
+                    </TabsTrigger>
+                    <TabsTrigger value="timelogs" className="text-xs h-7 px-3 shrink-0 flex items-center gap-1">
+                      <Timer className="h-3 w-3 text-primary" />
+                      Time Logs
+                    </TabsTrigger>
+                    <TabsTrigger value="activity" className="text-xs h-7 px-3 shrink-0">
+                      Activity
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
 
                 {/* Tab 1: Overview */}
-                <TabsContent value="overview" className="space-y-4 pt-4">
-                  {/* Description with Direct Inline Image Upload */}
-                  <div className="space-y-2 p-3 rounded-xl border bg-muted/10 border-border/70">
-                    <div className="flex items-center justify-between">
+                <TabsContent value="overview" className="space-y-4 pt-3">
+                  {/* Description Card */}
+                  <div className="space-y-2.5 p-3.5 rounded-xl border bg-card/60 shadow-2xs">
+                    <div className="flex items-center justify-between gap-2">
                       <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <FileText className="h-3.5 w-3.5 text-primary" />
                         <span>Description</span>
-                        <span className="text-[10px] text-muted-foreground font-normal normal-case">
-                          (Supports Paste Ctrl+V for screenshots)
-                        </span>
                       </Label>
+
                       <div className="flex items-center gap-1.5">
                         <input
                           ref={descImageInputRef}
@@ -723,7 +758,7 @@ export function TaskDetailSheet({
                           size="sm"
                           disabled={isDescUploading}
                           onClick={() => descImageInputRef.current?.click()}
-                          className="h-6 text-[11px] gap-1 text-primary border-primary/30 hover:bg-primary/10 cursor-pointer font-medium"
+                          className="h-6 text-[11px] px-2.5 gap-1 text-primary border-primary/30 hover:bg-primary/10 cursor-pointer font-medium"
                         >
                           {isDescUploading ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
@@ -735,8 +770,12 @@ export function TaskDetailSheet({
                       </div>
                     </div>
 
+                    <p className="text-[10px] text-muted-foreground">
+                      Write details or paste screenshot directly with <kbd className="px-1 py-0.5 rounded bg-muted text-[9px] font-mono border">Ctrl+V</kbd>
+                    </p>
+
                     <Textarea
-                      placeholder="Add details, acceptance criteria, or paste images directly with Ctrl+V..."
+                      placeholder="Add details, acceptance criteria, or paste images directly..."
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       onPaste={handleDescriptionPaste}
@@ -745,16 +784,16 @@ export function TaskDetailSheet({
                           updateTaskMutation.mutate({ description });
                         }
                       }}
-                      rows={5}
-                      className="text-xs resize-none bg-background"
+                      rows={4}
+                      className="text-xs resize-none bg-background leading-relaxed min-h-[90px]"
                     />
 
                     {/* Inline Preview / Attachments */}
                     {task.attachments && task.attachments.length > 0 && (
-                      <div className="pt-2 space-y-1.5 border-t border-border/50">
+                      <div className="pt-2.5 space-y-2 border-t border-border/50">
                         <div className="flex items-center justify-between text-[11px] text-muted-foreground font-medium">
                           <span className="flex items-center gap-1">
-                            <Paperclip className="h-3 w-3" />
+                            <Paperclip className="h-3 w-3 text-primary" />
                             Attached Images ({task.attachments.length})
                           </span>
                         </div>
@@ -773,25 +812,34 @@ export function TaskDetailSheet({
                     )}
                   </div>
 
-                  {/* Metadata Grid */}
-                  <div className="grid grid-cols-2 gap-3 text-xs pt-2">
-                    <div className="p-3 bg-muted/20 rounded-lg border space-y-1">
-                      <span className="text-muted-foreground text-[11px]">Project</span>
-                      <p className="font-semibold text-foreground">
-                        {task.projectId?.name || "Independent"}
+                  {/* Metadata Grid Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                    {/* Project Info Card */}
+                    <div className="p-3 bg-card/60 rounded-xl border space-y-1 shadow-2xs">
+                      <span className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1">
+                        <Folder className="h-3 w-3 text-primary" />
+                        Project
+                      </span>
+                      <p className="font-semibold text-xs text-foreground truncate">
+                        {task.projectId ? `[${task.projectId.key}] ${task.projectId.name}` : "Personal To-Do"}
                       </p>
                     </div>
 
-                    <div className="p-3 bg-muted/20 rounded-lg border space-y-1">
-                      <span className="text-muted-foreground text-[11px]">Reporter</span>
-                      <p className="font-semibold text-foreground">
-                        {task.reporterId?.name || "System Admin"}
+                    {/* Reporter Info Card */}
+                    <div className="p-3 bg-card/60 rounded-xl border space-y-1 shadow-2xs">
+                      <span className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1">
+                        <UserIcon className="h-3 w-3 text-primary" />
+                        Reporter
+                      </span>
+                      <p className="font-semibold text-xs text-foreground truncate">
+                        {task.reporterId?.name || "System"}
                       </p>
                     </div>
 
-                    <div className="p-3 bg-muted/20 rounded-lg border space-y-1 col-span-2">
+                    {/* Time Tracking Card */}
+                    <div className="p-3 bg-card/60 rounded-xl border space-y-2 col-span-1 sm:col-span-2 shadow-2xs">
                       <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground text-[11px] flex items-center gap-1.5">
+                        <span className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1.5">
                           <Timer className="h-3 w-3 text-primary" />
                           Time Tracking
                         </span>
@@ -799,21 +847,21 @@ export function TaskDetailSheet({
                           variant="ghost"
                           size="sm"
                           onClick={() => setShowLogForm(!showLogForm)}
-                          className="h-6 text-[10px] px-2 text-primary hover:bg-primary/10"
+                          className="h-5 text-[10px] px-2 text-primary hover:bg-primary/10 cursor-pointer"
                         >
                           + Log Work
                         </Button>
                       </div>
 
-                      <div className="space-y-1.5 pt-1">
+                      <div className="space-y-1.5 pt-0.5">
                         <div className="flex items-center justify-between text-xs font-semibold">
                           <span>{task.actualHours || 0}h logged</span>
-                          <span className="text-muted-foreground font-mono">
-                            {task.estimatedHours ? `${task.estimatedHours}h estimate` : "No estimate"}
+                          <span className="text-muted-foreground font-mono text-[11px]">
+                            {task.estimatedHours ? `${task.estimatedHours}h estimated` : "No estimate"}
                           </span>
                         </div>
                         {task.estimatedHours > 0 && (
-                          <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                          <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
                             <div
                               className={`h-full transition-all ${
                                 (task.actualHours || 0) > task.estimatedHours
@@ -832,8 +880,8 @@ export function TaskDetailSheet({
                       </div>
 
                       {showLogForm && (
-                        <div className="p-2.5 rounded-md border bg-card space-y-2 mt-2">
-                          <div className="grid grid-cols-2 gap-2">
+                        <div className="p-2.5 rounded-lg border bg-background space-y-2 mt-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <Input
                               type="number"
                               step="0.25"
@@ -872,18 +920,17 @@ export function TaskDetailSheet({
                       )}
                     </div>
 
-                    <div className="p-3 bg-muted/20 rounded-lg border space-y-1 col-span-2">
-                      <span className="text-muted-foreground text-[11px]">Created</span>
-                      <p className="font-semibold text-foreground">
-                        {format(new Date(task.createdAt), "MMM d, yyyy")}
-                      </p>
+                    {/* Dates Info Footer */}
+                    <div className="p-3 bg-muted/20 rounded-xl border flex items-center justify-between text-[11px] col-span-1 sm:col-span-2 text-muted-foreground">
+                      <span>Created: <strong className="text-foreground font-medium">{format(new Date(task.createdAt), "MMM d, yyyy")}</strong></span>
+                      <span>Due: <strong className="text-foreground font-medium">{task.dueDate ? format(new Date(task.dueDate), "MMM d, yyyy") : "None"}</strong></span>
                     </div>
                   </div>
 
                   {/* Labels Section */}
                   {task.labels && task.labels.length > 0 && (
-                    <div className="space-y-1.5 pt-2">
-                      <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
                         Labels
                       </span>
                       <div className="flex flex-wrap gap-1.5">

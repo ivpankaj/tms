@@ -109,7 +109,8 @@ export async function GET(req: NextRequest) {
       .populate("reporterId", "name email avatar")
       .populate("projectId", "name key color")
       .populate("teamId", "name color")
-      .sort({ order: 1, dueDate: 1, createdAt: -1 });
+      .sort({ order: 1, dueDate: 1, createdAt: -1 })
+      .lean();
 
     return apiSuccess(tasks);
   }
@@ -122,7 +123,8 @@ export async function GET(req: NextRequest) {
       .populate("teamId", "name color")
       .sort(sortOptions)
       .skip(skip)
-      .limit(limit),
+      .limit(limit)
+      .lean(),
     Task.countDocuments(query),
   ]);
 
@@ -226,7 +228,8 @@ export async function POST(req: NextRequest) {
       .populate("assignedTo", "name email avatar")
       .populate("reporterId", "name email avatar")
       .populate("projectId", "name key color")
-      .populate("teamId", "name color");
+      .populate("teamId", "name color")
+      .lean();
 
     return apiSuccess(populated, undefined, 201);
   } catch (err: any) {

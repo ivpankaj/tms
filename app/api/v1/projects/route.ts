@@ -32,34 +32,58 @@ export async function GET(req: NextRequest) {
       .populate("members", "name email avatar")
       .sort(sortOptions)
       .skip(skip)
-      .limit(limit),
+      .limit(limit)
+      .lean(),
     Project.countDocuments(query),
   ]);
 
-  // Augment each project with real-time task counts
-  const projects = await Promise.all(
-    rawProjects.map(async (p) => {
-      const [totalTasks, completedTasks] = await Promise.all([
-        Task.countDocuments({ projectId: p._id, isDeleted: false }),
-        Task.countDocuments({
-          projectId: p._id,
-          status: { $in: ["Done", "Completed"] },
+  // Augment projects with real-time task counts using ONE single aggregate query (0 N+1 overhead)
+  const projectIds = rawProjects.map((p) => p._id);
+  const taskStatsMap = new Map<string, { totalTasks: number; completedTasks: number }>();
+
+  if (projectIds.length > 0) {
+    const taskAgg = await Task.aggregate([
+      {
+        $match: {
+          projectId: { $in: projectIds },
           isDeleted: false,
-        }),
-      ]);
+        },
+      },
+      {
+        $group: {
+          _id: "$projectId",
+          totalTasks: { $sum: 1 },
+          completedTasks: {
+            $sum: {
+              $cond: [{ $in: ["$status", ["Done", "Completed"]] }, 1, 0],
+            },
+          },
+        },
+      },
+    ]);
 
-      const progress =
-        totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : p.progress || 0;
+    for (const stat of taskAgg) {
+      taskStatsMap.set(stat._id.toString(), {
+        totalTasks: stat.totalTasks,
+        completedTasks: stat.completedTasks,
+      });
+    }
+  }
 
-      const obj = p.toObject();
-      return {
-        ...obj,
-        totalTasks,
-        completedTasks,
-        progress,
-      };
-    })
-  );
+  const projects = rawProjects.map((p: any) => {
+    const stats = taskStatsMap.get(p._id.toString()) || { totalTasks: 0, completedTasks: 0 };
+    const progress =
+      stats.totalTasks > 0
+        ? Math.round((stats.completedTasks / stats.totalTasks) * 100)
+        : p.progress || 0;
+
+    return {
+      ...p,
+      totalTasks: stats.totalTasks,
+      completedTasks: stats.completedTasks,
+      progress,
+    };
+  });
 
   return apiSuccess(projects, {
     page,

@@ -22,7 +22,8 @@ export async function GET(req: NextRequest) {
   const activities = await Activity.find(query)
     .populate("createdBy", "name email avatar")
     .sort({ createdAt: -1 })
-    .limit(limit);
+    .limit(limit)
+    .lean();
 
   return apiSuccess(activities);
 }
@@ -54,10 +55,9 @@ export async function POST(req: NextRequest) {
       createdBy: auth!.user._id,
     });
 
-    const populated = await Activity.findById(activity._id).populate(
-      "createdBy",
-      "name email avatar"
-    );
+    const populated = await Activity.findById(activity._id)
+      .populate("createdBy", "name email avatar")
+      .lean();
 
     return apiSuccess(populated, undefined, 201);
   } catch (err: any) {

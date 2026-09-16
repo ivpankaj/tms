@@ -11,6 +11,30 @@ export interface AuthenticatedContext {
   organizationId: string;
 }
 
+// In-Memory Fast Authentication Cache (TTL 45 seconds)
+interface CachedAuth {
+  user: any;
+  organizationId: string;
+  role: string;
+  cachedAt: number;
+}
+
+const authCache = new Map<string, CachedAuth>();
+const AUTH_CACHE_TTL_MS = 45 * 1000; // 45 seconds
+let hasCheckedInitialSeed = false;
+
+export function clearAuthCache(userId?: string) {
+  if (userId) {
+    for (const [key, value] of authCache.entries()) {
+      if (value.user?._id?.toString() === userId || value.user?.id === userId) {
+        authCache.delete(key);
+      }
+    }
+  } else {
+    authCache.clear();
+  }
+}
+
 export function apiSuccess<T>(data: T, meta?: Record<string, unknown>, status = 200) {
   return NextResponse.json(
     {
@@ -53,10 +77,6 @@ export async function authenticateRequest(
   requiredPermission?: string
 ): Promise<{ auth?: AuthenticatedContext; errorResponse?: NextResponse }> {
   try {
-    await connectToDatabase();
-    // Auto-seed on first request if empty
-    await seedDatabase(false);
-
     let token: string | null = null;
 
     // 1. Check Authorization header
@@ -73,26 +93,66 @@ export async function authenticateRequest(
       }
     }
 
-    let user: IUser | null = null;
-
-    if (token) {
-      const payload = verifyJwt(token);
-      if (payload?.userId) {
-        user = await User.findOne({ _id: payload.userId, isDeleted: false });
-      }
-    }
-
-    if (!user) {
+    if (!token) {
       return {
         errorResponse: apiError("Unauthorized: Please log in to access this resource", "UNAUTHORIZED", 401),
       };
     }
 
-    // Check organization
-    const org = await Organization.findOne({ _id: user.organizationId, isDeleted: false });
-    if (!org) {
+    // 3. Check In-Memory High-Speed Cache (<0.1ms response)
+    const cached = authCache.get(token);
+    const now = Date.now();
+    if (cached && now - cached.cachedAt < AUTH_CACHE_TTL_MS) {
+      if (requiredPermission && !hasPermission(cached.role, requiredPermission)) {
+        return {
+          errorResponse: apiError(
+            `Forbidden: Insufficient permissions for '${requiredPermission}'`,
+            "FORBIDDEN",
+            403
+          ),
+        };
+      }
+
       return {
-        errorResponse: apiError("Organization not found or inactive", "ORG_NOT_FOUND", 403),
+        auth: {
+          user: cached.user,
+          organizationId: cached.organizationId,
+        },
+      };
+    }
+
+    // 4. Connect to database if not connected
+    await connectToDatabase();
+
+    // Run seed check only once on startup in background
+    if (!hasCheckedInitialSeed) {
+      hasCheckedInitialSeed = true;
+      seedDatabase(false).catch((e) => console.warn("[Cookmywork] Seed check:", e.message));
+    }
+
+    // Verify JWT
+    const payload = verifyJwt(token);
+    if (!payload?.userId) {
+      return {
+        errorResponse: apiError("Unauthorized: Invalid session token", "UNAUTHORIZED", 401),
+      };
+    }
+
+    // 5. Query user with lean() for maximum performance
+    const user = await User.findOne({ _id: payload.userId, isDeleted: false })
+      .select("name email role organizationId status avatar timezone")
+      .lean();
+
+    if (!user || user.status === "deactivated") {
+      return {
+        errorResponse: apiError("Unauthorized: Account not found or deactivated", "UNAUTHORIZED", 401),
+      };
+    }
+
+    const orgId = user.organizationId?.toString();
+    if (!orgId) {
+      return {
+        errorResponse: apiError("Organization not assigned", "ORG_NOT_FOUND", 403),
       };
     }
 
@@ -107,10 +167,18 @@ export async function authenticateRequest(
       };
     }
 
+    // Save to high-speed in-memory cache
+    authCache.set(token, {
+      user: user as any,
+      organizationId: orgId,
+      role: user.role,
+      cachedAt: now,
+    });
+
     return {
       auth: {
-        user,
-        organizationId: user.organizationId.toString(),
+        user: user as any,
+        organizationId: orgId,
       },
     };
   } catch (error: any) {

@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
     isDeleted: false,
   })
     .select("-passwordHash")
-    .sort({ createdAt: 1 });
+    .sort({ createdAt: 1 })
+    .lean();
 
   return apiSuccess(users);
 }

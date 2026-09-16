@@ -506,6 +506,8 @@ const CommentSchema = new Schema<IComment>(
   { timestamps: true }
 );
 
+CommentSchema.index({ organizationId: 1, taskId: 1, isDeleted: 1, createdAt: 1 });
+
 // 10d. Task
 export interface ITaskSubtask {
   _id?: mongoose.Types.ObjectId | string;
@@ -665,6 +667,11 @@ const TaskSchema = new Schema<ITask>(
   { timestamps: true }
 );
 
+TaskSchema.index({ organizationId: 1, isDeleted: 1, status: 1, dueDate: 1 });
+TaskSchema.index({ organizationId: 1, isDeleted: 1, assignedTo: 1 });
+TaskSchema.index({ organizationId: 1, isDeleted: 1, projectId: 1 });
+TaskSchema.index({ organizationId: 1, isDeleted: 1, isPersonal: 1 });
+
 // 11. Activity
 export interface IActivity extends Document, BaseEntity {
   type:
@@ -708,6 +715,8 @@ const ActivitySchema = new Schema<IActivity>(
   },
   { timestamps: true }
 );
+
+ActivitySchema.index({ organizationId: 1, entityType: 1, entityId: 1, createdAt: -1 });
 
 // 12. EmailTemplate
 export interface IEmailTemplate extends Document, BaseEntity {
@@ -1253,6 +1262,9 @@ const ReminderSchema = new Schema<IReminder>(
   { timestamps: true }
 );
 
+ReminderSchema.index({ organizationId: 1, userId: 1, isDeleted: 1, reminderTime: 1 });
+ReminderSchema.index({ reminderTime: 1, emailSent: 1, status: 1, isDeleted: 1 });
+
 export const Reminder: Model<IReminder> =
   mongoose.models.Reminder ||
   mongoose.model<IReminder>("Reminder", ReminderSchema);
@@ -1304,6 +1316,8 @@ const StickyNoteSchema = new Schema<IStickyNote>(
   },
   { timestamps: true }
 );
+
+StickyNoteSchema.index({ organizationId: 1, userId: 1, isDeleted: 1, isArchived: 1 });
 
 export const StickyNote: Model<IStickyNote> =
   mongoose.models.StickyNote ||

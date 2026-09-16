@@ -32,9 +32,14 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
     cached.promise = (async () => {
       // 1. Cloud MongoDB (e.g. MongoDB Atlas)
       if (isCloudCluster) {
-        console.log("[Cookmywork] Connecting to MongoDB Atlas Cluster...");
+        console.log("[Cookmywork] Connecting to MongoDB Atlas Cluster with warm connection pool...");
         return await mongoose.connect(mongoUri, {
           bufferCommands: false,
+          maxPoolSize: 50,
+          minPoolSize: 10,
+          maxIdleTimeMS: 30000,
+          connectTimeoutMS: 5000,
+          socketTimeoutMS: 30000,
           serverSelectionTimeoutMS: 10000,
           dbName: env.database.dbName || "cookmywork",
         });

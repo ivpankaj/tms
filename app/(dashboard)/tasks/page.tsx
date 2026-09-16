@@ -127,7 +127,7 @@ export default function TasksPage() {
     },
   });
 
-  // Toggle Complete Mutation
+  // Toggle Complete Mutation with Optimistic Update
   const toggleCompleteMutation = useMutation({
     mutationFn: async ({ taskId, currentStatus }: { taskId: string; currentStatus: string }) => {
       const newStatus = currentStatus === "Done" || currentStatus === "Completed" ? "Todo" : "Done";
@@ -138,7 +138,39 @@ export default function TasksPage() {
       });
       return res.json();
     },
-    onSuccess: () => {
+    onMutate: async ({ taskId, currentStatus }) => {
+      const newStatus = currentStatus === "Done" || currentStatus === "Completed" ? "Todo" : "Done";
+      const queryKey = [
+        "tasks-list",
+        organization?.id,
+        page,
+        statusFilter,
+        priorityFilter,
+        projectFilter,
+        search,
+      ];
+      await queryClient.cancelQueries({ queryKey });
+      const previousData = queryClient.getQueryData(queryKey);
+      if (previousData) {
+        queryClient.setQueryData(queryKey, (old: any) => {
+          if (!old?.data) return old;
+          return {
+            ...old,
+            data: old.data.map((t: any) =>
+              t._id === taskId ? { ...t, status: newStatus } : t
+            ),
+          };
+        });
+      }
+      return { previousData, queryKey };
+    },
+    onError: (_err, _vars, context: any) => {
+      if (context?.previousData && context?.queryKey) {
+        queryClient.setQueryData(context.queryKey, context.previousData);
+      }
+      toast.error("Failed to update status");
+    },
+    onSettled: () => {
       invalidateWorkspaceQueries(queryClient);
     },
   });
@@ -293,7 +325,7 @@ export default function TasksPage() {
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-3 sm:flex sm:items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
           {/* Status Filter */}
           <Select
             value={statusFilter}
@@ -302,11 +334,11 @@ export default function TasksPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-32 h-9 text-xs">
+            <SelectTrigger className="w-full sm:w-32 h-9 text-xs">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">All Statuses</SelectItem>
+              <SelectItem value="ALL">All Status</SelectItem>
               <SelectItem value="Backlog">Backlog</SelectItem>
               <SelectItem value="Todo">Todo</SelectItem>
               <SelectItem value="In Progress">In Progress</SelectItem>
@@ -323,11 +355,11 @@ export default function TasksPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-32 h-9 text-xs">
+            <SelectTrigger className="w-full sm:w-32 h-9 text-xs">
               <SelectValue placeholder="Priority" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">All Priorities</SelectItem>
+              <SelectItem value="ALL">All Priority</SelectItem>
               <SelectItem value="Urgent">Urgent</SelectItem>
               <SelectItem value="High">High</SelectItem>
               <SelectItem value="Medium">Medium</SelectItem>
@@ -343,7 +375,7 @@ export default function TasksPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-36 h-9 text-xs">
+            <SelectTrigger className="w-full sm:w-36 h-9 text-xs">
               <SelectValue placeholder="Project" />
             </SelectTrigger>
             <SelectContent>
@@ -404,8 +436,8 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* Table Container */}
-      <Card className="shadow-2xs overflow-hidden">
+      {/* Table Container (Desktop / Tablet) */}
+      <Card className="shadow-2xs overflow-hidden hidden md:block">
         <Table>
           <TableHeader>
             <TableRow>
@@ -451,21 +483,29 @@ export default function TasksPage() {
                   <TableCell>
                     <Skeleton className="h-4 w-20" />
                   </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-4 w-12 ml-auto" />
+                  <TableCell className="text-right">
+                    <Skeleton className="h-4 w-16 ml-auto" />
                   </TableCell>
                 </TableRow>
               ))
             ) : tasks.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-48 text-center text-xs text-muted-foreground">
-                  No tasks match the selected filters.
+                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                  <div className="flex flex-col items-center justify-center space-y-2">
+                    <CheckSquare className="h-8 w-8 text-muted-foreground/50" />
+                    <p className="text-sm font-medium">No tasks found</p>
+                    <p className="text-xs text-muted-foreground">
+                      {search || statusFilter !== "ALL" || priorityFilter !== "ALL" || projectFilter !== "ALL"
+                        ? "Try clearing filters to see more tasks"
+                        : "Create your first task to get started"}
+                    </p>
+                  </div>
                 </TableCell>
               </TableRow>
             ) : (
               tasks.map((task: any) => {
-                const isDone = task.status === "Done" || task.status === "Completed";
                 const isSelected = selectedTaskIds.includes(task._id);
+                const isDone = task.status === "Done" || task.status === "Completed";
 
                 return (
                   <TableRow
@@ -500,7 +540,12 @@ export default function TasksPage() {
                     </TableCell>
 
                     <TableCell onClick={() => handleOpenTask(task._id)}>
-                      <Badge variant="outline" className="text-[10px]">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] ${
+                          isDone ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : ""
+                        }`}
+                      >
                         {task.status}
                       </Badge>
                     </TableCell>
@@ -631,6 +676,166 @@ export default function TasksPage() {
           </div>
         )}
       </Card>
+
+      {/* Mobile Card List View (Mobile screen < 768px) */}
+      <div className="block md:hidden space-y-3">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="p-4 space-y-3 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+              <Skeleton className="h-5 w-3/4" />
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+            </Card>
+          ))
+        ) : tasks.length === 0 ? (
+          <Card className="p-8 text-center text-muted-foreground">
+            <CheckSquare className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
+            <p className="text-sm font-medium">No tasks found</p>
+          </Card>
+        ) : (
+          tasks.map((task: any) => {
+            const isSelected = selectedTaskIds.includes(task._id);
+            const isDone = task.status === "Done" || task.status === "Completed";
+
+            return (
+              <Card
+                key={task._id}
+                onClick={() => handleOpenTask(task._id)}
+                className={`p-3.5 space-y-2.5 shadow-2xs cursor-pointer border transition-all active:scale-[0.99] ${
+                  isSelected ? "bg-primary/5 border-primary/40" : "hover:border-primary/30"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => handleSelectTask(task._id)}
+                      />
+                    </div>
+                    {task.projectId ? (
+                      <Badge variant="outline" className="font-mono text-[10px] font-bold shrink-0">
+                        {task.projectId.key}
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="text-[10px] shrink-0">
+                        Personal
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] font-semibold cursor-pointer ${
+                        isDone ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : ""
+                      }`}
+                      onClick={() => toggleCompleteMutation.mutate({ taskId: task._id, currentStatus: task.status })}
+                    >
+                      {task.status}
+                    </Badge>
+                    <Badge
+                      variant={
+                        task.priority === "Urgent" || task.priority === "High"
+                          ? "destructive"
+                          : "secondary"
+                      }
+                      className="text-[10px]"
+                    >
+                      {task.priority}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <p
+                    className={`font-semibold text-xs leading-snug break-words ${
+                      isDone ? "line-through text-muted-foreground" : "text-foreground"
+                    }`}
+                  >
+                    {task.title}
+                  </p>
+                  {task.subtasks && task.subtasks.length > 0 && (
+                    <p className="text-[10px] text-muted-foreground font-mono">
+                      {task.subtasks.filter((s: any) => s.completed).length}/{task.subtasks.length} subtasks
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between pt-1 border-t text-[11px] text-muted-foreground">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <Avatar className="h-4 w-4 shrink-0">
+                      <AvatarFallback className="text-[8px] bg-primary/10 text-primary">
+                        {task.assignedTo?.name ? task.assignedTo.name[0] : "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="truncate max-w-[110px]">{task.assignedTo?.name || "Unassigned"}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {task.dueDate && (
+                      <span className="text-[10px] text-muted-foreground">
+                        {format(new Date(task.dueDate), "MMM d")}
+                      </span>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-primary"
+                      onClick={(e) => handleSetReminder(task, e)}
+                    >
+                      <Bell className="h-3 w-3 text-amber-500" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                      onClick={(e) => handleEditTask(task._id, e)}
+                    >
+                      <Edit3 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            );
+          })
+        )}
+
+        {/* Mobile Pagination */}
+        {meta.totalPages > 1 && (
+          <div className="flex items-center justify-between p-3 rounded-xl border bg-card text-xs text-muted-foreground">
+            <div>
+              Page {page} of {meta.totalPages}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage(page - 1)}
+                className="h-7 text-xs px-2.5"
+              >
+                Prev
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= meta.totalPages}
+                onClick={() => setPage(page + 1)}
+                className="h-7 text-xs px-2.5"
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Task Detail Sheet */}
       <TaskDetailSheet

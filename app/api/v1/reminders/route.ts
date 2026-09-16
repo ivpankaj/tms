@@ -6,14 +6,20 @@ import { processDueReminders } from "@/lib/services/reminder-scheduler";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+let lastBackgroundRun = 0;
+
 export async function GET(req: NextRequest) {
   const { auth, errorResponse } = await authenticateRequest(req);
   if (errorResponse) return errorResponse;
 
-  // Background trigger to process any due reminders immediately
-  processDueReminders().catch((err) =>
-    console.error("[RemindersAPI] Background processor error:", err)
-  );
+  // Background trigger to process any due reminders throttled to once per minute
+  const nowMs = Date.now();
+  if (nowMs - lastBackgroundRun > 60000) {
+    lastBackgroundRun = nowMs;
+    processDueReminders().catch((err) =>
+      console.error("[RemindersAPI] Background processor error:", err)
+    );
+  }
 
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status"); // 'Pending' | 'Completed' | 'Cancelled' | 'ALL'
@@ -63,33 +69,68 @@ export async function GET(req: NextRequest) {
     query.emailSent = true;
   }
 
-  const [reminders, totalCount, pendingCount, todayCount, overdueCount, completedCount, sentCount] =
-    await Promise.all([
-      Reminder.find(query).sort({ reminderTime: 1 }).limit(200).lean(),
-      Reminder.countDocuments(baseQuery),
-      Reminder.countDocuments({ ...baseQuery, status: "Pending" }),
-      Reminder.countDocuments({
-        ...baseQuery,
-        status: "Pending",
-        reminderTime: { $gte: startOfToday, $lte: endOfToday },
-      }),
-      Reminder.countDocuments({
-        ...baseQuery,
-        status: "Pending",
-        reminderTime: { $lt: now },
-      }),
-      Reminder.countDocuments({ ...baseQuery, status: "Completed" }),
-      Reminder.countDocuments({ ...baseQuery, emailSent: true }),
-    ]);
+  const [reminders, countsAgg] = await Promise.all([
+    Reminder.find(query).sort({ reminderTime: 1 }).limit(200).lean(),
+    Reminder.aggregate([
+      { $match: baseQuery },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          pending: { $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] } },
+          today: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "Pending"] },
+                    { $gte: ["$reminderTime", startOfToday] },
+                    { $lte: ["$reminderTime", endOfToday] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          overdue: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "Pending"] },
+                    { $lt: ["$reminderTime", now] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          completed: { $sum: { $cond: [{ $eq: ["$status", "Completed"] }, 1, 0] } },
+          sent: { $sum: { $cond: [{ $eq: ["$emailSent", true] }, 1, 0] } },
+        },
+      },
+    ]),
+  ]);
+
+  const stats = countsAgg[0] || {
+    total: 0,
+    pending: 0,
+    today: 0,
+    overdue: 0,
+    completed: 0,
+    sent: 0,
+  };
 
   return apiSuccess(reminders, {
     counts: {
-      total: totalCount,
-      pending: pendingCount,
-      today: todayCount,
-      overdue: overdueCount,
-      completed: completedCount,
-      sent: sentCount,
+      total: stats.total || 0,
+      pending: stats.pending || 0,
+      today: stats.today || 0,
+      overdue: stats.overdue || 0,
+      completed: stats.completed || 0,
+      sent: stats.sent || 0,
     },
   });
 }

@@ -178,7 +178,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Fetch notifications
+  // Fetch notifications (cached for 30s)
   const { data: notifications = [] } = useQuery({
     queryKey: ["notifications", organization?.id],
     queryFn: async () => {
@@ -187,6 +187,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       return data.success ? data.data : [];
     },
     enabled: Boolean(user),
+    staleTime: 30 * 1000,
   });
 
   const unreadCount = notifications.filter((n: any) => !n.isRead).length;
@@ -205,14 +206,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     },
   });
 
-  // Periodically process due reminders in background (every 30 seconds)
+  // Periodically process due reminders in background (every 60 seconds)
   useQuery({
     queryKey: ["process-due-reminders"],
     queryFn: async () => {
       const res = await fetch("/api/v1/reminders/process", { method: "POST" });
       return res.json();
     },
-    refetchInterval: 30000,
+    refetchInterval: 60000,
     enabled: Boolean(user),
   });
 

@@ -16,7 +16,10 @@ export async function GET(
       _id: id,
       organizationId: auth!.organizationId,
       isDeleted: false,
-    }).populate("timeLogs.userId", "name email avatar");
+    })
+      .select("estimatedHours actualHours timeLogs")
+      .populate("timeLogs.userId", "name email avatar")
+      .lean();
 
     if (!task) {
       return apiError("Task not found", "NOT_FOUND", 404);
@@ -85,7 +88,10 @@ export async function POST(
       createdBy: auth!.user._id,
     });
 
-    const populatedTask = await Task.findById(task._id).populate("timeLogs.userId", "name email avatar");
+    const populatedTask = await Task.findById(task._id)
+      .select("estimatedHours actualHours timeLogs")
+      .populate("timeLogs.userId", "name email avatar")
+      .lean();
 
     return apiSuccess(
       {
