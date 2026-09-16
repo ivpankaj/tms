@@ -28,7 +28,7 @@ import { SetTaskReminderDialog } from "@/components/shared/set-task-reminder-dia
 import { invalidateWorkspaceQueries } from "@/lib/utils/query-helpers";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { toast } from "sonner";
-import { format, formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow, isPast } from "date-fns";
 import {
   FolderGit2,
   ListTodo,
@@ -57,6 +57,10 @@ import {
   Zap,
   CheckSquare,
   Eye,
+  ListChecks,
+  Paperclip,
+  AlertTriangle,
+  ArrowDownCircle,
   Edit3,
   Edit2,
   Bell,
@@ -83,10 +87,220 @@ import {
   useDroppable,
   useDraggable,
   DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
   PointerSensor,
   useSensor,
   useSensors,
+  defaultDropAnimationSideEffects,
 } from "@dnd-kit/core";
+
+const PROJECT_STATUS_CONFIG: Record<
+  string,
+  { label: string; color: string; bgLight: string; badge: string; border: string }
+> = {
+  Backlog: {
+    label: "Backlog",
+    color: "#64748b",
+    bgLight: "bg-slate-500/10",
+    badge: "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20",
+    border: "border-slate-300 dark:border-slate-800",
+  },
+  Todo: {
+    label: "Todo",
+    color: "#3b82f6",
+    bgLight: "bg-blue-500/10",
+    badge: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+    border: "border-blue-300 dark:border-blue-800",
+  },
+  "In Progress": {
+    label: "In Progress",
+    color: "#f59e0b",
+    bgLight: "bg-amber-500/10",
+    badge: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+    border: "border-amber-300 dark:border-amber-800",
+  },
+  "In Review": {
+    label: "In Review",
+    color: "#8b5cf6",
+    bgLight: "bg-purple-500/10",
+    badge: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20",
+    border: "border-purple-300 dark:border-purple-800",
+  },
+  Done: {
+    label: "Done",
+    color: "#10b981",
+    bgLight: "bg-emerald-500/10",
+    badge: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+    border: "border-emerald-300 dark:border-emerald-800",
+  },
+};
+
+const getProjectTaskPriorityStyle = (priority: string) => {
+  switch (priority) {
+    case "Urgent":
+      return {
+        badge: "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 font-semibold",
+        leftBorder: "border-l-rose-500",
+        dot: "bg-rose-500",
+      };
+    case "High":
+      return {
+        badge: "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30 font-semibold",
+        leftBorder: "border-l-orange-500",
+        dot: "bg-orange-500",
+      };
+    case "Medium":
+      return {
+        badge: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 font-medium",
+        leftBorder: "border-l-amber-500",
+        dot: "bg-amber-500",
+      };
+    case "Low":
+    default:
+      return {
+        badge: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30 font-medium",
+        leftBorder: "border-l-blue-500",
+        dot: "bg-blue-500",
+      };
+  }
+};
+
+// Pure Card Visual Component
+function KanbanCardVisual({
+  task,
+  isOverlay = false,
+  isGhost = false,
+  onSelect,
+  onEdit,
+  onReminder,
+}: {
+  task: any;
+  isOverlay?: boolean;
+  isGhost?: boolean;
+  onSelect?: (id: string) => void;
+  onEdit?: (task: any) => void;
+  onReminder?: (task: any) => void;
+}) {
+  const priorityStyle = getProjectTaskPriorityStyle(task.priority);
+  const subtasksCount = task.subtasks?.length || 0;
+  const subtasksCompleted = task.subtasks?.filter((s: any) => s.completed).length || 0;
+  const progressPercent = subtasksCount > 0 ? Math.round((subtasksCompleted / subtasksCount) * 100) : 0;
+  const attachmentsCount = task.attachments?.length || 0;
+
+  const dueDateObj = task.dueDate ? new Date(task.dueDate) : null;
+  const isOverdue = dueDateObj && isPast(dueDateObj) && task.status !== "Done";
+
+  if (isGhost) {
+    return (
+      <div className="p-3.5 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 min-h-[100px] opacity-40 transition-all flex items-center justify-center">
+        <span className="text-xs font-medium text-primary/70 flex items-center gap-1.5">
+          <Sparkles className="h-3.5 w-3.5 animate-pulse" />
+          Moving task...
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={() => onSelect && onSelect(task._id)}
+      className={`group relative p-3 rounded-xl border bg-card/95 backdrop-blur-xs transition-all duration-150 select-none space-y-2.5 ${
+        priorityStyle.leftBorder
+      } border-l-[3.5px] ${
+        isOverlay
+          ? "shadow-2xl ring-2 ring-primary/50 rotate-1 scale-[1.02] cursor-grabbing z-50 bg-card"
+          : "shadow-xs hover:shadow-md hover:border-primary/40 hover:-translate-y-0.5 cursor-grab active:cursor-grabbing"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-1.5">
+        <h5 className="font-medium text-xs sm:text-[13px] text-foreground line-clamp-2 leading-snug group-hover:text-primary transition-colors flex-1">
+          {task.title}
+        </h5>
+        <div className="flex items-center gap-1 shrink-0">
+          <Badge
+            variant="outline"
+            className={`text-[9.5px] px-1.5 py-0 h-4.5 shrink-0 ${priorityStyle.badge}`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full mr-1 ${priorityStyle.dot}`} />
+            {task.priority || "Medium"}
+          </Badge>
+          {!isOverlay && onEdit && onReminder && (
+            <div
+              className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-background/90 rounded px-1 py-0.5"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 text-muted-foreground hover:text-foreground cursor-pointer"
+                title="Edit Task"
+                onClick={() => onEdit(task)}
+              >
+                <Edit2 className="h-3 w-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10 cursor-pointer"
+                title="Set Reminder"
+                onClick={() => onReminder(task)}
+              >
+                <Bell className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {subtasksCount > 0 && (
+        <div className="w-full h-1.5 bg-muted/80 rounded-full overflow-hidden">
+          <div
+            className={`h-full transition-all duration-300 ${
+              progressPercent === 100 ? "bg-emerald-500" : "bg-primary"
+            }`}
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      )}
+
+      <div className="flex items-center justify-between pt-1.5 border-t border-border/50 text-[10.5px]">
+        <div className="flex items-center gap-1.5 truncate">
+          <Avatar className="h-4.5 w-4.5 ring-1 ring-background">
+            <AvatarFallback className="text-[8px] bg-primary/10 text-primary font-bold">
+              {task.assignedTo?.name ? task.assignedTo.name[0].toUpperCase() : "U"}
+            </AvatarFallback>
+          </Avatar>
+          <span className="truncate text-muted-foreground text-[10.5px]">
+            {task.assignedTo?.name || "Unassigned"}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {subtasksCount > 0 && (
+            <span className="flex items-center gap-0.5 text-muted-foreground font-mono text-[9.5px]">
+              <ListChecks className="h-2.5 w-2.5" />
+              {subtasksCompleted}/{subtasksCount}
+            </span>
+          )}
+          {dueDateObj && (
+            <span
+              className={`flex items-center gap-1 px-1 py-0.2 rounded font-mono text-[9.5px] ${
+                isOverdue
+                  ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
+                  : "bg-muted/60 text-muted-foreground"
+              }`}
+            >
+              {isOverdue && <AlertTriangle className="h-2.5 w-2.5 text-rose-600" />}
+              {format(dueDateObj, "MMM d")}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Draggable Kanban Card Component
 function KanbanCard({
@@ -100,82 +314,26 @@ function KanbanCard({
   onEdit: (task: any) => void;
   onReminder: (task: any) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: task._id,
     data: { task },
   });
 
-  const style: React.CSSProperties = {
-    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    opacity: isDragging ? 0.4 : 1,
-    zIndex: isDragging ? 50 : 1,
-  };
-
   return (
     <div
       ref={setNodeRef}
-      style={style}
       {...attributes}
       {...listeners}
-      onClick={() => onSelect(task._id)}
-      className="group p-3 rounded-xl border bg-card hover:border-primary/50 transition-all shadow-2xs cursor-grab active:cursor-grabbing space-y-2 text-xs relative"
+      style={{ touchAction: "none" }}
+      className="outline-none"
     >
-      <div className="flex items-start justify-between gap-1">
-        <h5 className="font-semibold text-foreground line-clamp-2 group-hover:text-primary transition-colors">
-          {task.title}
-        </h5>
-        <div className="flex items-center gap-1 shrink-0">
-          <Badge
-            variant={
-              task.priority === "Urgent" || task.priority === "High"
-                ? "destructive"
-                : "secondary"
-            }
-            className="text-[9px] px-1 py-0 font-normal shrink-0"
-          >
-            {task.priority}
-          </Badge>
-          <div
-            className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5 text-muted-foreground hover:text-foreground cursor-pointer"
-              title="Edit Task"
-              onClick={() => onEdit(task)}
-            >
-              <Edit2 className="h-3 w-3" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10 cursor-pointer"
-              title="Set Reminder / Shift"
-              onClick={() => onReminder(task)}
-            >
-              <Bell className="h-3 w-3" />
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[10px] text-muted-foreground">
-        <div className="flex items-center gap-1.5 truncate">
-          <Avatar className="h-4 w-4">
-            <AvatarFallback className="text-[8px] bg-primary/10 text-primary">
-              {task.assignedTo?.name ? task.assignedTo.name[0] : "U"}
-            </AvatarFallback>
-          </Avatar>
-          <span className="truncate">{task.assignedTo?.name || "Unassigned"}</span>
-        </div>
-
-        {task.dueDate && (
-          <span className="shrink-0">{format(new Date(task.dueDate), "MMM d")}</span>
-        )}
-      </div>
+      <KanbanCardVisual
+        task={task}
+        isGhost={isDragging}
+        onSelect={onSelect}
+        onEdit={onEdit}
+        onReminder={onReminder}
+      />
     </div>
   );
 }
@@ -201,32 +359,46 @@ function KanbanColumn({
     data: { status },
   });
 
+  const config = PROJECT_STATUS_CONFIG[status] || {
+    label: status,
+    color: "#64748b",
+    bgLight: "bg-muted/40",
+    badge: "bg-muted text-muted-foreground",
+    border: "border-border",
+  };
+
   return (
     <div
       ref={setNodeRef}
-      className={`w-72 shrink-0 flex flex-col rounded-xl border bg-muted/20 transition-colors ${
-        isOver ? "bg-muted/60 border-primary" : ""
+      className={`w-80 shrink-0 flex flex-col rounded-2xl border bg-muted/20 transition-all duration-200 ${
+        isOver
+          ? "border-primary ring-2 ring-primary/30 bg-primary/[0.04] shadow-lg shadow-primary/5"
+          : "border-border/70 hover:border-border"
       }`}
     >
-      <div className="p-3 border-b flex items-center justify-between">
+      <div className="p-3.5 border-b border-border/50 flex items-center justify-between bg-card/50 rounded-t-2xl backdrop-blur-xs">
         <div className="flex items-center gap-2">
-          <h4 className="font-semibold text-xs text-foreground">{status}</h4>
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+          <span
+            className="h-2.5 w-2.5 rounded-full"
+            style={{ backgroundColor: config.color }}
+          />
+          <h4 className="font-semibold text-xs sm:text-sm text-foreground">{status}</h4>
+          <span className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded-full ${config.badge}`}>
             {tasks.length}
-          </Badge>
+          </span>
         </div>
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+          className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-background/80 rounded-lg cursor-pointer"
           onClick={() => onQuickAdd(status)}
           title={`Add task in ${status}`}
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-4 w-4" />
         </Button>
       </div>
 
-      <div className="p-2.5 flex-1 overflow-y-auto space-y-2 min-h-[400px]">
+      <div className="p-2.5 flex-1 overflow-y-auto space-y-2.5 min-h-[450px] max-h-[calc(100vh-320px)] scrollbar-thin">
         {tasks.map((task) => (
           <KanbanCard
             key={task._id}
@@ -236,6 +408,19 @@ function KanbanColumn({
             onReminder={onReminderTask}
           />
         ))}
+
+        {tasks.length === 0 && (
+          <div
+            className={`h-32 flex flex-col items-center justify-center gap-1.5 text-xs text-muted-foreground border-2 border-dashed rounded-xl transition-all duration-150 ${
+              isOver
+                ? "border-primary/60 bg-primary/10 text-primary font-medium"
+                : "border-border/60 bg-muted/10"
+            }`}
+          >
+            <ArrowDownCircle className={`h-4 w-4 ${isOver ? "text-primary animate-bounce" : "text-muted-foreground/50"}`} />
+            <span>{isOver ? "Drop to move here" : "Drop tasks here"}</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -259,11 +444,12 @@ export default function ProjectDetailPage() {
   const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
   const [isDeleteProjectOpen, setIsDeleteProjectOpen] = useState(false);
   const [taskSearch, setTaskSearch] = useState("");
+  const [activeTask, setActiveTask] = useState<any | null>(null);
 
-  // Sensor for dnd-kit
+  // Sensor for dnd-kit (activation constraint of 4px to distinguish click from drag)
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
+      activationConstraint: { distance: 4 },
     })
   );
 
@@ -444,7 +630,7 @@ export default function ProjectDetailPage() {
     onError: (err: any) => toast.error(err.message),
   });
 
-  // Update Task Status Mutation (For Drag-and-Drop)
+  // Update Task Status Mutation (For Drag-and-Drop with 0ms Optimistic UI)
   const updateTaskStatusMutation = useMutation({
     mutationFn: async ({ taskId, newStatus }: { taskId: string; newStatus: string }) => {
       const res = await fetch(`/api/v1/tasks/${taskId}`, {
@@ -456,11 +642,34 @@ export default function ProjectDetailPage() {
       if (!json.success) throw new Error(json.error?.message || "Failed to move task");
       return json.data;
     },
-    onSuccess: (data) => {
-      invalidateWorkspaceQueries(queryClient, { taskId: data._id, projectId });
-      toast.success("Task status updated");
+    onMutate: async ({ taskId, newStatus }) => {
+      await queryClient.cancelQueries({ queryKey: ["project-tasks", projectId] });
+      const previousTasks = queryClient.getQueryData(["project-tasks", projectId]);
+
+      // Optimistically update project tasks cache immediately in 0ms
+      queryClient.setQueryData(["project-tasks", projectId], (old: any[] | undefined) => {
+        if (!old) return [];
+        return old.map((t: any) =>
+          t._id === taskId ? { ...t, status: newStatus, updatedAt: new Date().toISOString() } : t
+        );
+      });
+
+      return { previousTasks };
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any, variables, context) => {
+      if (context?.previousTasks) {
+        queryClient.setQueryData(["project-tasks", projectId], context.previousTasks);
+      }
+      toast.error(err.message || "Failed to update task status");
+    },
+    onSuccess: (data) => {
+      toast.success(`Task moved to ${data.status}`);
+    },
+    onSettled: (data) => {
+      if (data?._id) {
+        invalidateWorkspaceQueries(queryClient, { taskId: data._id, projectId });
+      }
+    },
   });
 
   // Delete Project Mutation
@@ -481,8 +690,21 @@ export default function ProjectDetailPage() {
     onError: (err: any) => toast.error(err.message),
   });
 
+  const handleDragStart = (event: DragStartEvent) => {
+    const taskId = event.active.id as string;
+    const task = tasks.find((t: any) => t._id === taskId);
+    if (task) {
+      setActiveTask(task);
+    }
+  };
+
+  const handleDragCancel = () => {
+    setActiveTask(null);
+  };
+
   // Handle Drag End in Kanban Board
   const handleDragEnd = (event: DragEndEvent) => {
+    setActiveTask(null);
     const { active, over } = event;
     if (!over) return;
     const taskId = active.id as string;
@@ -839,8 +1061,13 @@ export default function ProjectDetailPage() {
 
         {/* Tab 3: Kanban Board */}
         <TabsContent value="board" className="pt-2">
-          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-            <div className="flex items-start gap-4 overflow-x-auto pb-4 scrollbar-thin">
+          <DndContext
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
+          >
+            <div className="flex items-start gap-4 overflow-x-auto pb-4 scrollbar-thin pt-1">
               {boardColumns.map((colStatus) => (
                 <KanbanColumn
                   key={colStatus}
@@ -853,6 +1080,27 @@ export default function ProjectDetailPage() {
                 />
               ))}
             </div>
+
+            <DragOverlay
+              zIndex={99999}
+              dropAnimation={{
+                duration: 150,
+                easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)",
+                sideEffects: defaultDropAnimationSideEffects({
+                  styles: {
+                    active: {
+                      opacity: "0.4",
+                    },
+                  },
+                }),
+              }}
+            >
+              {activeTask ? (
+                <div className="w-80 pointer-events-none shadow-2xl">
+                  <KanbanCardVisual task={activeTask} isOverlay={true} />
+                </div>
+              ) : null}
+            </DragOverlay>
           </DndContext>
         </TabsContent>
 
