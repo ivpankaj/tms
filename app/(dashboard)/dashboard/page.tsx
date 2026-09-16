@@ -11,6 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { TaskDetailSheet } from "@/components/shared/task-detail-sheet";
 import { CreateTaskDialog } from "@/components/shared/create-task-dialog";
+import { EditTaskDialog } from "@/components/shared/edit-task-dialog";
+import { SetTaskReminderDialog } from "@/components/shared/set-task-reminder-dialog";
 import {
   CheckCircle2,
   Clock,
@@ -27,7 +29,17 @@ import {
   Activity as ActivityIcon,
   ChevronRight,
   Flame,
+  Edit2,
+  Bell,
+  MoreVertical,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -46,6 +58,8 @@ export default function DashboardPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<any | null>(null);
+  const [reminderTask, setReminderTask] = useState<any | null>(null);
 
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["dashboard-metrics", organization?.id],
@@ -54,6 +68,8 @@ export default function DashboardPage() {
       const json = await res.json();
       return json.success ? json.data : null;
     },
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const kpi = data?.kpi;
@@ -476,10 +492,12 @@ export default function DashboardPage() {
                 <div
                   key={t._id}
                   onClick={() => handleOpenTask(t._id)}
-                  className="p-3 hover:bg-muted/40 transition-colors cursor-pointer flex items-center justify-between gap-3 text-xs"
+                  className="p-3 hover:bg-muted/40 transition-colors cursor-pointer flex items-center justify-between gap-3 text-xs group"
                 >
                   <div className="space-y-1 truncate flex-1">
-                    <p className="font-semibold text-foreground truncate">{t.title}</p>
+                    <p className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                      {t.title}
+                    </p>
                     <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                       {t.projectId && (
                         <span className="font-mono text-primary font-medium">
@@ -506,6 +524,27 @@ export default function DashboardPage() {
                     <Badge variant="outline" className="text-[9px] px-1 py-0 font-normal">
                       {t.status}
                     </Badge>
+
+                    <div className="flex items-center gap-1 ml-1" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                        title="Edit Task"
+                        onClick={() => setEditingTask(t)}
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10"
+                        title="Set Reminder / Shift to Reminders"
+                        onClick={() => setReminderTask(t)}
+                      >
+                        <Bell className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))
@@ -580,6 +619,24 @@ export default function DashboardPage() {
       <CreateTaskDialog
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
+      />
+
+      {/* Edit Task Dialog */}
+      <EditTaskDialog
+        task={editingTask}
+        open={!!editingTask}
+        onOpenChange={(open) => {
+          if (!open) setEditingTask(null);
+        }}
+      />
+
+      {/* Set Task Reminder Dialog */}
+      <SetTaskReminderDialog
+        task={reminderTask}
+        open={!!reminderTask}
+        onOpenChange={(open) => {
+          if (!open) setReminderTask(null);
+        }}
       />
     </div>
   );

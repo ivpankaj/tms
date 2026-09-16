@@ -17,8 +17,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { TaskDetailSheet } from "@/components/shared/task-detail-sheet";
 import { CreateTaskDialog } from "@/components/shared/create-task-dialog";
+import { EditTaskDialog } from "@/components/shared/edit-task-dialog";
+import { SetTaskReminderDialog } from "@/components/shared/set-task-reminder-dialog";
+import { invalidateWorkspaceQueries } from "@/lib/utils/query-helpers";
 import { toast } from "sonner";
 import { format, isToday, isPast, isFuture } from "date-fns";
 import {
@@ -36,6 +46,10 @@ import {
   Sparkles,
   Inbox,
   Loader2,
+  Edit3,
+  Bell,
+  Trash2,
+  MoreVertical,
 } from "lucide-react";
 
 export default function MyTasksPage() {
@@ -52,6 +66,12 @@ export default function MyTasksPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("ALL");
+
+  // Edit and Reminder dialog states
+  const [editTaskId, setEditTaskId] = useState<string | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [reminderTask, setReminderTask] = useState<any | null>(null);
+  const [isReminderOpen, setIsReminderOpen] = useState(false);
 
   // Fetch all tasks assigned to user or personal to-dos
   const { data: tasks = [], isLoading, refetch } = useQuery({
@@ -84,14 +104,12 @@ export default function MyTasksPage() {
       if (!data.success) throw new Error(data.error?.message || "Failed to create to-do");
       return data.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       setQuickTodoTitle("");
       setQuickDueDate("");
       setQuickPriority("Medium");
       toast.success("To-Do added");
-      queryClient.invalidateQueries({ queryKey: ["my-tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
-      queryClient.invalidateQueries({ queryKey: ["tasks-list"] });
+      invalidateWorkspaceQueries(queryClient, { taskId: data?._id });
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -113,9 +131,24 @@ export default function MyTasksPage() {
       toast.success(
         data.status === "Done" ? "Task marked as completed! 🎉" : "Task marked as Todo"
       );
-      queryClient.invalidateQueries({ queryKey: ["my-tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
-      queryClient.invalidateQueries({ queryKey: ["tasks-list"] });
+      invalidateWorkspaceQueries(queryClient, { taskId: data?._id });
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  // Delete Single Task Mutation
+  const deleteSingleTaskMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/v1/tasks/${id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error?.message || "Failed to delete task");
+      return json.data;
+    },
+    onSuccess: () => {
+      toast.success("Task deleted");
+      invalidateWorkspaceQueries(queryClient);
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -246,7 +279,7 @@ export default function MyTasksPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <Badge
             variant={
               t.priority === "Urgent" || t.priority === "High"
@@ -260,6 +293,83 @@ export default function MyTasksPage() {
           <Badge variant="outline" className="text-[10px]">
             {t.status}
           </Badge>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-primary"
+            onClick={(e) => {
+              e.stopPropagation();
+              setReminderTask(t);
+              setIsReminderOpen(true);
+            }}
+            title="Schedule Reminder / Shift to Reminders"
+          >
+            <Bell className="h-3.5 w-3.5 text-amber-500" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditTaskId(t._id);
+              setIsEditOpen(true);
+            }}
+            title="Edit Task"
+          >
+            <Edit3 className="h-3.5 w-3.5" />
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreVertical className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="text-xs">
+              <DropdownMenuItem onClick={() => openTask(t._id)}>
+                View Details
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditTaskId(t._id);
+                  setIsEditOpen(true);
+                }}
+              >
+                <Edit3 className="h-3.5 w-3.5 mr-1.5" />
+                Edit Task
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setReminderTask(t);
+                  setIsReminderOpen(true);
+                }}
+              >
+                <Bell className="h-3.5 w-3.5 mr-1.5 text-amber-500" />
+                Set Reminder / Shift
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  deleteSingleTaskMutation.mutate(t._id);
+                }}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     );
@@ -534,6 +644,24 @@ export default function MyTasksPage() {
       <CreateTaskDialog
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
+      />
+
+      {/* Edit Task Modal */}
+      <EditTaskDialog
+        taskId={editTaskId}
+        open={isEditOpen}
+        onOpenChange={setIsEditOpen}
+        onOpenReminder={(t) => {
+          setReminderTask(t);
+          setIsReminderOpen(true);
+        }}
+      />
+
+      {/* Set Task Reminder Modal */}
+      <SetTaskReminderDialog
+        task={reminderTask}
+        open={isReminderOpen}
+        onOpenChange={setIsReminderOpen}
       />
     </div>
   );

@@ -1,8 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth/auth-context";
+import { TaskImageUploader, TaskAttachment } from "@/components/shared/task-image-uploader";
+import { invalidateWorkspaceQueries } from "@/lib/utils/query-helpers";
 import {
   Dialog,
   DialogContent,
@@ -47,6 +50,13 @@ import {
   ChevronDown,
   Layers,
   Timer,
+  Paperclip,
+  Bell,
+  Clock,
+  Calendar,
+  ArrowRight,
+  Image as ImageIcon,
+  Loader2,
 } from "lucide-react";
 
 interface CreateTaskDialogProps {
@@ -122,7 +132,8 @@ export function CreateTaskDialog({
   defaultDueDate,
   defaultSprintId,
 }: CreateTaskDialogProps) {
-  const { organization, user } = useAuth();
+  const router = useRouter();
+  const { organization, user, authFetch } = useAuth();
   const queryClient = useQueryClient();
 
   // Form State
@@ -143,6 +154,84 @@ export function CreateTaskDialog({
   const [labels, setLabels] = useState<string[]>([]);
   const [subtaskInput, setSubtaskInput] = useState("");
   const [subtasks, setSubtasks] = useState<string[]>([]);
+  const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
+  const descImageInputRef = React.useRef<HTMLInputElement>(null);
+  const [isDescUploading, setIsDescUploading] = useState(false);
+
+  const handleUploadDescriptionImage = async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    if (fileArray.length === 0) return;
+
+    setIsDescUploading(true);
+    try {
+      for (const file of fileArray) {
+        if (!file.type.startsWith("image/")) {
+          toast.error(`File "${file.name}" is not an image.`);
+          continue;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("folder", "task-attachments");
+        formData.append("resourceType", "image");
+
+        const res = await authFetch("/api/v1/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        const json = await res.json();
+        if (!json.success || !json.data?.url) {
+          throw new Error(json.error?.message || `Failed to upload ${file.name}`);
+        }
+
+        const newAtt: TaskAttachment = {
+          name: json.data.name || file.name,
+          url: json.data.url,
+          size: json.data.size || file.size,
+          mimeType: json.data.type || file.type || "image/png",
+          createdAt: new Date().toISOString(),
+        };
+
+        setAttachments((prev) => [...prev, newAtt]);
+        setDescription((prev) =>
+          prev
+            ? `${prev}\n\n![${newAtt.name}](${newAtt.url})\n`
+            : `![${newAtt.name}](${newAtt.url})\n`
+        );
+        toast.success(`Image "${file.name}" uploaded and added to description!`);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload image");
+    } finally {
+      setIsDescUploading(false);
+      if (descImageInputRef.current) descImageInputRef.current.value = "";
+    }
+  };
+
+  const handleDescriptionPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith("image/")) {
+        const file = items[i].getAsFile();
+        if (file) imageFiles.push(file);
+      }
+    }
+
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      await handleUploadDescriptionImage(imageFiles);
+    }
+  };
+
+  // Reminder State
+  const [shouldSetReminder, setShouldSetReminder] = useState(false);
+  const [reminderDate, setReminderDate] = useState("");
+  const [reminderTime, setReminderTime] = useState("09:00");
+  const [shiftToReminders, setShiftToReminders] = useState(false);
 
   // Reset when dialog opens
   React.useEffect(() => {
@@ -162,6 +251,18 @@ export function CreateTaskDialog({
       setIsPersonal(false);
       setLabels([]);
       setSubtasks([]);
+      setAttachments([]);
+      setShouldSetReminder(false);
+      setShiftToReminders(false);
+
+      if (defaultDueDate) {
+        setReminderDate(defaultDueDate);
+      } else {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        setReminderDate(tomorrow.toISOString().split("T")[0]);
+      }
+      setReminderTime("09:00");
     }
   }, [open, defaultProjectId, defaultStatus, defaultDueDate, defaultSprintId, user?.id]);
 
@@ -169,7 +270,7 @@ export function CreateTaskDialog({
   const { data: projects = [] } = useQuery({
     queryKey: ["projects-dropdown", organization?.id],
     queryFn: async () => {
-      const res = await fetch("/api/v1/projects?limit=100");
+      const res = await authFetch("/api/v1/projects?limit=100");
       const json = await res.json();
       return json.success ? json.data : [];
     },
@@ -181,7 +282,7 @@ export function CreateTaskDialog({
     queryKey: ["project-sprints", projectId],
     queryFn: async () => {
       if (!projectId || projectId === "none") return [];
-      const res = await fetch(`/api/v1/projects/${projectId}/sprints`);
+      const res = await authFetch(`/api/v1/projects/${projectId}/sprints`);
       const json = await res.json();
       return json.success ? json.data : [];
     },
@@ -192,7 +293,7 @@ export function CreateTaskDialog({
   const { data: members = [] } = useQuery({
     queryKey: ["users-dropdown", organization?.id],
     queryFn: async () => {
-      const res = await fetch("/api/v1/settings/users");
+      const res = await authFetch("/api/v1/settings/users");
       const json = await res.json();
       return json.success ? json.data : [];
     },
@@ -227,28 +328,53 @@ export function CreateTaskDialog({
         isPersonal,
         labels,
         subtasks: subtasks.map((st) => ({ title: st, completed: false })),
+        attachments,
       };
 
-      const res = await fetch("/api/v1/tasks", {
+      const res = await authFetch("/api/v1/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error?.message || "Failed to create task");
-      return data.data;
+
+      const createdTask = data.data;
+
+      // If user enabled schedule reminder, create reminder too
+      if (shouldSetReminder && reminderDate && reminderTime) {
+        try {
+          const reminderDateTime = new Date(`${reminderDate}T${reminderTime}:00`);
+          await authFetch("/api/v1/reminders", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: `Reminder: ${title.trim()}`,
+              description: description.trim(),
+              reminderTime: reminderDateTime.toISOString(),
+              priority: ["Low", "Medium", "High", "Urgent"].includes(priority) ? priority : "Medium",
+              category: "Work",
+              tags: ["task-reminder"],
+            }),
+          });
+        } catch (rErr) {
+          console.warn("Failed to schedule attached reminder:", rErr);
+        }
+      }
+
+      return createdTask;
     },
-    onSuccess: () => {
-      toast.success("Task created successfully");
-      queryClient.invalidateQueries({ queryKey: ["tasks-list"] });
-      queryClient.invalidateQueries({ queryKey: ["tasks-board"] });
-      queryClient.invalidateQueries({ queryKey: ["tasks-calendar"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
-      queryClient.invalidateQueries({ queryKey: ["my-tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      queryClient.invalidateQueries({ queryKey: ["project-sprints"] });
-      queryClient.invalidateQueries({ queryKey: ["workload"] });
+    onSuccess: (createdTask) => {
+      toast.success("Task created successfully!");
+      invalidateWorkspaceQueries(queryClient, {
+        taskId: createdTask?._id,
+        projectId: projectId !== "none" ? projectId : undefined,
+      });
       onOpenChange(false);
+
+      if (shiftToReminders || (shouldSetReminder && shiftToReminders)) {
+        router.push("/reminders");
+      }
     },
     onError: (err: any) => {
       toast.error(err.message);
@@ -536,19 +662,72 @@ export function CreateTaskDialog({
             </div>
           </div>
 
-          {/* Description */}
-          <div className="space-y-1.5">
-            <Label htmlFor="task-description" className="text-xs font-semibold">
-              Description / Acceptance Criteria
-            </Label>
+          {/* Description with Direct Inline Image Upload */}
+          <div className="space-y-2 p-3 rounded-xl border bg-muted/10 border-border/70">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="task-description" className="text-xs font-semibold flex items-center gap-1.5">
+                <span>Description / Acceptance Criteria</span>
+                <span className="text-[10px] text-muted-foreground font-normal">
+                  (Supports Paste Ctrl+V for screenshots)
+                </span>
+              </Label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  ref={descImageInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => e.target.files && handleUploadDescriptionImage(e.target.files)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isDescUploading}
+                  onClick={() => descImageInputRef.current?.click()}
+                  className="h-7 text-[11px] gap-1.5 text-primary border-primary/30 hover:bg-primary/10 cursor-pointer font-medium"
+                >
+                  {isDescUploading ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <ImageIcon className="h-3 w-3" />
+                  )}
+                  <span>+ Add Image</span>
+                </Button>
+              </div>
+            </div>
+
             <Textarea
               id="task-description"
-              placeholder="Add details, acceptance criteria, steps to reproduce, or specifications..."
+              placeholder="Add details, acceptance criteria, steps to reproduce... You can type notes, paste images directly with Ctrl+V, or click '+ Add Image' above."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              onPaste={handleDescriptionPaste}
               rows={4}
-              className="text-xs font-mono"
+              className="text-xs bg-background"
             />
+
+            {/* Inline Attachments & Image Manager */}
+            {attachments.length > 0 && (
+              <div className="pt-1 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground font-medium">
+                  <span className="flex items-center gap-1">
+                    <Paperclip className="h-3 w-3" />
+                    Attached Images ({attachments.length})
+                  </span>
+                </div>
+
+                <TaskImageUploader
+                  attachments={attachments}
+                  onChange={setAttachments}
+                  compact={true}
+                  onInsertMarkdown={(snippet) =>
+                    setDescription((prev) => (prev ? `${prev}\n\n${snippet}\n` : `${snippet}\n`))
+                  }
+                />
+              </div>
+            )}
           </div>
 
           {/* Subtasks */}
@@ -639,6 +818,90 @@ export function CreateTaskDialog({
             )}
           </div>
 
+          {/* Images & Attachments */}
+          <div className="space-y-2 pt-2 border-t">
+            <Label className="text-xs font-semibold flex items-center gap-1.5">
+              <Paperclip className="h-3.5 w-3.5 text-primary" />
+              Attachments & Media
+            </Label>
+            <TaskImageUploader
+              attachments={attachments}
+              onChange={setAttachments}
+              disabled={createTaskMutation.isPending}
+              compact
+            />
+          </div>
+
+          {/* Schedule Reminder Toggle & Options */}
+          <div className="space-y-3 pt-2 border-t rounded-xl p-3 bg-muted/20 border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="schedule-reminder"
+                  checked={shouldSetReminder}
+                  onCheckedChange={(checked) => setShouldSetReminder(Boolean(checked))}
+                />
+                <label
+                  htmlFor="schedule-reminder"
+                  className="text-xs font-semibold text-foreground cursor-pointer flex items-center gap-1.5"
+                >
+                  <Bell className="h-3.5 w-3.5 text-amber-500" />
+                  Schedule Automated Reminder
+                </label>
+              </div>
+              {shouldSetReminder && (
+                <Badge variant="secondary" className="text-[10px] text-amber-500">
+                  Email & In-App Alert
+                </Badge>
+              )}
+            </div>
+
+            {shouldSetReminder && (
+              <div className="space-y-2 pt-2 animate-in fade-in">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      Reminder Date
+                    </Label>
+                    <Input
+                      type="date"
+                      value={reminderDate}
+                      onChange={(e) => setReminderDate(e.target.value)}
+                      className="text-xs h-8"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      Reminder Time
+                    </Label>
+                    <Input
+                      type="time"
+                      value={reminderTime}
+                      onChange={(e) => setReminderTime(e.target.value)}
+                      className="text-xs h-8"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id="shift-to-reminders"
+                    checked={shiftToReminders}
+                    onCheckedChange={(checked) => setShiftToReminders(Boolean(checked))}
+                  />
+                  <label
+                    htmlFor="shift-to-reminders"
+                    className="text-[11px] text-muted-foreground cursor-pointer"
+                  >
+                    Open Reminders tab immediately after creating
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Personal To-Do checkbox */}
           <div className="flex items-center gap-2 pt-2 border-t">
             <Checkbox
@@ -660,7 +923,7 @@ export function CreateTaskDialog({
             </label>
           </div>
 
-          <DialogFooter className="pt-3">
+          <DialogFooter className="pt-3 flex flex-col sm:flex-row items-center justify-between gap-2">
             <Button
               type="button"
               variant="outline"
@@ -669,13 +932,15 @@ export function CreateTaskDialog({
             >
               Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={createTaskMutation.isPending}
-              className="text-xs gap-1.5"
-            >
-              {createTaskMutation.isPending ? "Creating..." : "Create Task"}
-            </Button>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Button
+                type="submit"
+                disabled={createTaskMutation.isPending}
+                className="text-xs gap-1.5 flex-1 sm:flex-initial"
+              >
+                {createTaskMutation.isPending ? "Creating..." : "Create Task"}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -40,6 +40,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { invalidateWorkspaceQueries } from "@/lib/utils/query-helpers";
 import { toast } from "sonner";
 import {
   Bell,
@@ -63,6 +64,7 @@ import {
   Timer,
   Mail,
   Zap,
+  ListTodo,
 } from "lucide-react";
 
 interface ReminderItem {
@@ -100,6 +102,7 @@ export default function RemindersPage() {
   });
   const [priority, setPriority] = useState<"Low" | "Medium" | "High" | "Urgent">("Medium");
   const [category, setCategory] = useState<"Work" | "Personal" | "Meeting" | "Deadline" | "Follow-up">("Work");
+  const [selectedTaskLink, setSelectedTaskLink] = useState<string>("NONE");
 
   // Fetch Reminders
   const { data, isLoading, refetch } = useQuery({
@@ -114,7 +117,18 @@ export default function RemindersPage() {
       const json = await res.json();
       return json;
     },
-    refetchInterval: 15000, // Refresh list every 15s to update countdowns and sent states
+    staleTime: 0,
+    refetchInterval: 15000,
+  });
+
+  // Fetch existing tasks for quick linking
+  const { data: workspaceTasks = [] } = useQuery({
+    queryKey: ["tasks-reminder-picker"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/tasks?limit=100");
+      const json = await res.json();
+      return json.success ? json.data : [];
+    },
   });
 
   const reminders: ReminderItem[] = data?.data || [];
@@ -143,7 +157,7 @@ export default function RemindersPage() {
       toast.success("Reminder scheduled successfully!");
       setIsCreateOpen(false);
       resetForm();
-      queryClient.invalidateQueries({ queryKey: ["reminders"] });
+      invalidateWorkspaceQueries(queryClient);
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to schedule reminder");
@@ -163,7 +177,7 @@ export default function RemindersPage() {
       return json.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["reminders"] });
+      invalidateWorkspaceQueries(queryClient);
     },
     onError: (err: any) => {
       toast.error(err.message);
@@ -182,7 +196,7 @@ export default function RemindersPage() {
     },
     onSuccess: () => {
       toast.success("Reminder removed");
-      queryClient.invalidateQueries({ queryKey: ["reminders"] });
+      invalidateWorkspaceQueries(queryClient);
     },
   });
 
@@ -198,19 +212,39 @@ export default function RemindersPage() {
       } else {
         toast.info("Reminders checked. No new due emails to send right now.");
       }
-      queryClient.invalidateQueries({ queryKey: ["reminders"] });
+      invalidateWorkspaceQueries(queryClient);
     },
   });
 
   const resetForm = () => {
     setTitle("");
     setDescription("");
+    setSelectedTaskLink("NONE");
     const today = new Date();
     setReminderDate(today.toISOString().split("T")[0]);
     const d = new Date(Date.now() + 60 * 60 * 1000);
     setReminderTime(`${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`);
     setPriority("Medium");
     setCategory("Work");
+  };
+
+  const handleSelectTaskLink = (taskId: string) => {
+    setSelectedTaskLink(taskId);
+    if (taskId === "NONE") return;
+    const t = workspaceTasks.find((item: any) => item._id === taskId);
+    if (t) {
+      setTitle(t.title || "");
+      setDescription(t.description || "");
+      if (t.priority) {
+        setPriority(t.priority as any);
+      }
+      if (t.dueDate) {
+        const d = new Date(t.dueDate);
+        setReminderDate(d.toISOString().split("T")[0]);
+        setReminderTime(`${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`);
+      }
+      toast.info(`Populated details from task "${t.title}"`);
+    }
   };
 
   const handleCreateSubmit = (e: React.FormEvent) => {
@@ -549,6 +583,28 @@ export default function RemindersPage() {
           </DialogHeader>
 
           <form onSubmit={handleCreateSubmit} className="space-y-4 py-2">
+            {workspaceTasks.length > 0 && (
+              <div className="space-y-1.5 p-3 rounded-lg bg-muted/40 border border-border/60">
+                <Label className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                  <ListTodo className="h-3.5 w-3.5 text-primary" />
+                  Select Task to Auto-Fill (Optional)
+                </Label>
+                <Select value={selectedTaskLink} onValueChange={handleSelectTaskLink}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Choose a task to copy from..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NONE">-- None (Create custom reminder) --</SelectItem>
+                    {workspaceTasks.map((t: any) => (
+                      <SelectItem key={t._id} value={t._id}>
+                        {t.projectId ? `[${t.projectId.key}] ` : ""}{t.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <Label htmlFor="rem-title" className="text-xs font-semibold">
                 Task Title <span className="text-destructive">*</span>

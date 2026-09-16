@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar as CalendarUI } from "@/components/ui/calendar";
 import { TaskDetailSheet } from "@/components/shared/task-detail-sheet";
 import { CreateTaskDialog } from "@/components/shared/create-task-dialog";
+import { EditTaskDialog } from "@/components/shared/edit-task-dialog";
+import { SetTaskReminderDialog } from "@/components/shared/set-task-reminder-dialog";
 import { format, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, isToday } from "date-fns";
 import {
   Calendar as CalendarIcon,
@@ -18,6 +20,8 @@ import {
   Clock,
   FolderGit2,
   CheckSquare,
+  Edit2,
+  Bell,
 } from "lucide-react";
 
 export default function CalendarPage() {
@@ -27,6 +31,8 @@ export default function CalendarPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<any | null>(null);
+  const [reminderTask, setReminderTask] = useState<any | null>(null);
 
   // Fetch all calendar tasks
   const { data: tasks = [], isLoading } = useQuery({
@@ -36,6 +42,7 @@ export default function CalendarPage() {
       const json = await res.json();
       return json.success ? json.data : [];
     },
+    staleTime: 0,
   });
 
   // Tasks on currently selected date
@@ -130,10 +137,12 @@ export default function CalendarPage() {
                 <div
                   key={task._id}
                   onClick={() => handleOpenTask(task._id)}
-                  className="p-3.5 rounded-xl border bg-card hover:border-primary/50 transition-all flex items-center justify-between gap-3 text-xs cursor-pointer shadow-2xs"
+                  className="p-3.5 rounded-xl border bg-card hover:border-primary/50 transition-all flex items-center justify-between gap-3 text-xs cursor-pointer shadow-2xs group"
                 >
                   <div className="space-y-1 truncate flex-1">
-                    <p className="font-semibold text-foreground truncate">{task.title}</p>
+                    <p className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                      {task.title}
+                    </p>
                     <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                       {task.projectId && (
                         <span className="font-mono text-primary font-medium">
@@ -160,6 +169,27 @@ export default function CalendarPage() {
                     <Badge variant="outline" className="text-[10px]">
                       {task.status}
                     </Badge>
+
+                    <div className="flex items-center gap-1 ml-1" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-foreground cursor-pointer"
+                        title="Edit Task"
+                        onClick={() => setEditingTask(task)}
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10 cursor-pointer"
+                        title="Set Reminder / Shift"
+                        onClick={() => setReminderTask(task)}
+                      >
+                        <Bell className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -180,6 +210,24 @@ export default function CalendarPage() {
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
         defaultDueDate={format(selectedDate, "yyyy-MM-dd")}
+      />
+
+      {/* Edit Task Dialog */}
+      <EditTaskDialog
+        task={editingTask}
+        open={!!editingTask}
+        onOpenChange={(open) => {
+          if (!open) setEditingTask(null);
+        }}
+      />
+
+      {/* Set Task Reminder Dialog */}
+      <SetTaskReminderDialog
+        task={reminderTask}
+        open={!!reminderTask}
+        onOpenChange={(open) => {
+          if (!open) setReminderTask(null);
+        }}
       />
     </div>
   );

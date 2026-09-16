@@ -22,6 +22,7 @@ import {
   Kanban,
   ListOrdered,
   Plus,
+  StickyNote,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -163,11 +164,11 @@ export function GlobalSearch() {
                 <span>Kanban Board View</span>
               </CommandItem>
               <CommandItem
-                onSelect={() => onSelect("/calendar")}
+                onSelect={() => onSelect("/views/notes")}
                 className="flex items-center gap-2 cursor-pointer"
               >
-                <Calendar className="h-4 w-4 text-rose-500" />
-                <span>Calendar Agenda</span>
+                <StickyNote className="h-4 w-4 text-amber-500" />
+                <span>Sticky Notes Board</span>
               </CommandItem>
             </CommandGroup>
           )}

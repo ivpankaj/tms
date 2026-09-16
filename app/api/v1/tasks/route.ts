@@ -2,6 +2,9 @@ import { NextRequest } from "next/server";
 import { authenticateRequest, apiSuccess, apiError, parsePagination } from "@/lib/auth/api-auth";
 import { Task, Activity, Notification } from "@/lib/db/models";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(req: NextRequest) {
   const { auth, errorResponse } = await authenticateRequest(req, "tasks:read");
   if (errorResponse) return errorResponse;
@@ -159,6 +162,7 @@ export async function POST(req: NextRequest) {
       issueType = "task",
       storyPoints = 0,
       sprintId,
+      attachments = [],
     } = body;
 
     if (!title || !title.trim()) {
@@ -187,6 +191,7 @@ export async function POST(req: NextRequest) {
       subtasks: Array.isArray(subtasks) ? subtasks : [],
       checklist: Array.isArray(checklist) ? checklist : [],
       dependencies: Array.isArray(dependencies) ? dependencies : [],
+      attachments: Array.isArray(attachments) ? attachments : [],
       isPersonal: Boolean(isPersonal),
       recurring: recurring || { isRecurring: false, frequency: "none" },
       order: 0,

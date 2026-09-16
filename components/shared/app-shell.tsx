@@ -37,6 +37,7 @@ import {
   Zap,
   User,
   BellRing,
+  StickyNote,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -106,6 +107,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Board", href: "/views/board", icon: Kanban },
       { label: "Calendar", href: "/views/calendar", icon: CalendarDays },
       { label: "Timeline", href: "/views/timeline", icon: GitCommitHorizontal },
+      { label: "Notes", href: "/views/notes", icon: StickyNote, badge: "New" },
     ],
   },
   {

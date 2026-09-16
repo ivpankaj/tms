@@ -2,6 +2,9 @@ import { NextRequest } from "next/server";
 import { authenticateRequest, apiSuccess, apiError } from "@/lib/auth/api-auth";
 import { Task, Activity, Notification, Project } from "@/lib/db/models";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -70,6 +73,7 @@ export async function PATCH(
       "subtasks",
       "checklist",
       "dependencies",
+      "attachments",
       "isPersonal",
       "recurring",
       "order",

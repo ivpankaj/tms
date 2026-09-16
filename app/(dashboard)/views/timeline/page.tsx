@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/select";
 import { TaskDetailSheet } from "@/components/shared/task-detail-sheet";
 import { CreateTaskDialog } from "@/components/shared/create-task-dialog";
+import { EditTaskDialog } from "@/components/shared/edit-task-dialog";
+import { SetTaskReminderDialog } from "@/components/shared/set-task-reminder-dialog";
 import { format, addDays, startOfWeek, differenceInDays } from "date-fns";
 import {
   GitCommitHorizontal,
@@ -25,6 +27,8 @@ import {
   Plus,
   Search,
   Flag,
+  Edit2,
+  Bell,
 } from "lucide-react";
 
 export default function TimelineViewPage() {
@@ -33,6 +37,8 @@ export default function TimelineViewPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<any | null>(null);
+  const [reminderTask, setReminderTask] = useState<any | null>(null);
 
   // Fetch Projects
   const { data: projects = [] } = useQuery({
@@ -56,6 +62,7 @@ export default function TimelineViewPage() {
       const json = await res.json();
       return json.success ? json.data : [];
     },
+    staleTime: 0,
   });
 
   // Generate 28-day timeline columns starting from 7 days ago
@@ -173,10 +180,34 @@ export default function TimelineViewPage() {
                     >
                       {/* Left: Task Label */}
                       <div className="w-72 shrink-0 p-3 border-r flex items-center justify-between gap-2 overflow-hidden text-xs">
-                        <span className="font-semibold text-foreground truncate">{task.title}</span>
-                        <Badge variant="outline" className="text-[9px] shrink-0">
-                          {task.status}
-                        </Badge>
+                        <span className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                          {task.title}
+                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Badge variant="outline" className="text-[9px]">
+                            {task.status}
+                          </Badge>
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-5 w-5 text-muted-foreground hover:text-foreground cursor-pointer"
+                              title="Edit Task"
+                              onClick={() => setEditingTask(task)}
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-5 w-5 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10 cursor-pointer"
+                              title="Set Reminder / Shift"
+                              onClick={() => setReminderTask(task)}
+                            >
+                              <Bell className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Right: Gantt Bar Axis */}
@@ -214,6 +245,24 @@ export default function TimelineViewPage() {
       <CreateTaskDialog
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
+      />
+
+      {/* Edit Task Dialog */}
+      <EditTaskDialog
+        task={editingTask}
+        open={!!editingTask}
+        onOpenChange={(open) => {
+          if (!open) setEditingTask(null);
+        }}
+      />
+
+      {/* Set Task Reminder Dialog */}
+      <SetTaskReminderDialog
+        task={reminderTask}
+        open={!!reminderTask}
+        onOpenChange={(open) => {
+          if (!open) setReminderTask(null);
+        }}
       />
     </div>
   );

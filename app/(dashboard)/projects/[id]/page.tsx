@@ -23,6 +23,9 @@ import {
 } from "@/components/ui/select";
 import { TaskDetailSheet } from "@/components/shared/task-detail-sheet";
 import { CreateTaskDialog } from "@/components/shared/create-task-dialog";
+import { EditTaskDialog } from "@/components/shared/edit-task-dialog";
+import { SetTaskReminderDialog } from "@/components/shared/set-task-reminder-dialog";
+import { invalidateWorkspaceQueries } from "@/lib/utils/query-helpers";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
@@ -55,8 +58,18 @@ import {
   CheckSquare,
   Eye,
   Edit3,
+  Edit2,
+  Bell,
+  MoreVertical,
   Timer,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -76,7 +89,17 @@ import {
 } from "@dnd-kit/core";
 
 // Draggable Kanban Card Component
-function KanbanCard({ task, onSelect }: { task: any; onSelect: (id: string) => void }) {
+function KanbanCard({
+  task,
+  onSelect,
+  onEdit,
+  onReminder,
+}: {
+  task: any;
+  onSelect: (id: string) => void;
+  onEdit: (task: any) => void;
+  onReminder: (task: any) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task._id,
     data: { task },
@@ -95,20 +118,48 @@ function KanbanCard({ task, onSelect }: { task: any; onSelect: (id: string) => v
       {...attributes}
       {...listeners}
       onClick={() => onSelect(task._id)}
-      className="p-3 rounded-xl border bg-card hover:border-primary/50 transition-all shadow-2xs cursor-grab active:cursor-grabbing space-y-2 text-xs"
+      className="group p-3 rounded-xl border bg-card hover:border-primary/50 transition-all shadow-2xs cursor-grab active:cursor-grabbing space-y-2 text-xs relative"
     >
       <div className="flex items-start justify-between gap-1">
-        <h5 className="font-semibold text-foreground line-clamp-2">{task.title}</h5>
-        <Badge
-          variant={
-            task.priority === "Urgent" || task.priority === "High"
-              ? "destructive"
-              : "secondary"
-          }
-          className="text-[9px] px-1 py-0 font-normal shrink-0"
-        >
-          {task.priority}
-        </Badge>
+        <h5 className="font-semibold text-foreground line-clamp-2 group-hover:text-primary transition-colors">
+          {task.title}
+        </h5>
+        <div className="flex items-center gap-1 shrink-0">
+          <Badge
+            variant={
+              task.priority === "Urgent" || task.priority === "High"
+                ? "destructive"
+                : "secondary"
+            }
+            className="text-[9px] px-1 py-0 font-normal shrink-0"
+          >
+            {task.priority}
+          </Badge>
+          <div
+            className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 text-muted-foreground hover:text-foreground cursor-pointer"
+              title="Edit Task"
+              onClick={() => onEdit(task)}
+            >
+              <Edit2 className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10 cursor-pointer"
+              title="Set Reminder / Shift"
+              onClick={() => onReminder(task)}
+            >
+              <Bell className="h-3 w-3" />
+            </Button>
+          </div>
+        </div>
       </div>
 
       <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[10px] text-muted-foreground">
@@ -135,11 +186,15 @@ function KanbanColumn({
   tasks,
   onSelectTask,
   onQuickAdd,
+  onEditTask,
+  onReminderTask,
 }: {
   status: string;
   tasks: any[];
   onSelectTask: (id: string) => void;
   onQuickAdd: (status: string) => void;
+  onEditTask: (task: any) => void;
+  onReminderTask: (task: any) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: status,
@@ -173,7 +228,13 @@ function KanbanColumn({
 
       <div className="p-2.5 flex-1 overflow-y-auto space-y-2 min-h-[400px]">
         {tasks.map((task) => (
-          <KanbanCard key={task._id} task={task} onSelect={onSelectTask} />
+          <KanbanCard
+            key={task._id}
+            task={task}
+            onSelect={onSelectTask}
+            onEdit={onEditTask}
+            onReminder={onReminderTask}
+          />
         ))}
       </div>
     </div>
@@ -193,6 +254,8 @@ export default function ProjectDetailPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createDefaultStatus, setCreateDefaultStatus] = useState("Todo");
+  const [editingTask, setEditingTask] = useState<any | null>(null);
+  const [reminderTask, setReminderTask] = useState<any | null>(null);
   const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
   const [isDeleteProjectOpen, setIsDeleteProjectOpen] = useState(false);
   const [taskSearch, setTaskSearch] = useState("");
@@ -213,6 +276,7 @@ export default function ProjectDetailPage() {
       return json.success ? json.data : null;
     },
     enabled: Boolean(projectId),
+    staleTime: 0,
   });
 
   // 2. Fetch Project Tasks
@@ -224,6 +288,7 @@ export default function ProjectDetailPage() {
       return json.success ? json.data : [];
     },
     enabled: Boolean(projectId),
+    staleTime: 0,
   });
 
   // 3. Fetch Project Activities
@@ -246,6 +311,7 @@ export default function ProjectDetailPage() {
       return json.success ? json.data : [];
     },
     enabled: Boolean(projectId),
+    staleTime: 0,
   });
 
   // 5. Fetch Project Docs
@@ -305,8 +371,8 @@ export default function ProjectDetailPage() {
       return json.data;
     },
     onSuccess: () => {
+      invalidateWorkspaceQueries(queryClient, { projectId });
       queryClient.invalidateQueries({ queryKey: ["project-sprints", projectId] });
-      queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
       toast.success("Sprint updated");
     },
     onError: (err: any) => toast.error(err.message),
@@ -324,8 +390,8 @@ export default function ProjectDetailPage() {
       if (!json.success) throw new Error(json.error?.message || "Failed to assign sprint");
       return json.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
+    onSuccess: (data) => {
+      invalidateWorkspaceQueries(queryClient, { taskId: data._id, projectId });
       queryClient.invalidateQueries({ queryKey: ["project-sprints", projectId] });
       toast.success("Task sprint updated");
     },
@@ -372,8 +438,7 @@ export default function ProjectDetailPage() {
     },
     onSuccess: (updated) => {
       queryClient.setQueryData(["project", projectId], updated);
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
+      invalidateWorkspaceQueries(queryClient, { projectId });
       toast.success("Project updated");
     },
     onError: (err: any) => toast.error(err.message),
@@ -391,10 +456,8 @@ export default function ProjectDetailPage() {
       if (!json.success) throw new Error(json.error?.message || "Failed to move task");
       return json.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
-      queryClient.invalidateQueries({ queryKey: ["project", projectId] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
+    onSuccess: (data) => {
+      invalidateWorkspaceQueries(queryClient, { taskId: data._id, projectId });
       toast.success("Task status updated");
     },
     onError: (err: any) => toast.error(err.message),
@@ -721,11 +784,11 @@ export default function ProjectDetailPage() {
                 <div
                   key={t._id}
                   onClick={() => handleOpenTask(t._id)}
-                  className="p-3.5 rounded-xl border bg-card hover:border-primary/50 transition-all flex items-center justify-between gap-3 text-sm cursor-pointer shadow-2xs"
+                  className="p-3.5 rounded-xl border bg-card hover:border-primary/50 transition-all flex items-center justify-between gap-3 text-sm cursor-pointer shadow-2xs group"
                 >
-                  <div className="flex items-center gap-3 truncate">
+                  <div className="flex items-center gap-3 truncate flex-1">
                     <span
-                      className={`font-medium truncate ${
+                      className={`font-medium truncate group-hover:text-primary transition-colors ${
                         t.status === "Done" ? "line-through text-muted-foreground" : ""
                       }`}
                     >
@@ -747,6 +810,27 @@ export default function ProjectDetailPage() {
                     <Badge variant="outline" className="text-xs px-2 py-0.5">
                       {t.status}
                     </Badge>
+
+                    <div className="flex items-center gap-1 ml-1" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
+                        title="Edit Task"
+                        onClick={() => setEditingTask(t)}
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10 cursor-pointer"
+                        title="Set Reminder / Shift"
+                        onClick={() => setReminderTask(t)}
+                      >
+                        <Bell className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -764,6 +848,8 @@ export default function ProjectDetailPage() {
                   tasks={tasks.filter((t: any) => t.status === colStatus)}
                   onSelectTask={handleOpenTask}
                   onQuickAdd={handleQuickAdd}
+                  onEditTask={(task) => setEditingTask(task)}
+                  onReminderTask={(task) => setReminderTask(task)}
                 />
               ))}
             </div>
@@ -960,6 +1046,24 @@ export default function ProjectDetailPage() {
                               </Badge>
                               <Button
                                 variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-foreground cursor-pointer"
+                                title="Edit Task"
+                                onClick={() => setEditingTask(t)}
+                              >
+                                <Edit2 className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10 cursor-pointer"
+                                title="Set Reminder / Shift"
+                                onClick={() => setReminderTask(t)}
+                              >
+                                <Bell className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
                                 size="sm"
                                 onClick={() =>
                                   assignTaskSprintMutation.mutate({ taskId: t._id, sprintId: null })
@@ -1076,6 +1180,24 @@ export default function ProjectDetailPage() {
                             <Badge variant="outline" className="text-[10px]">
                               {t.status}
                             </Badge>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground hover:text-foreground cursor-pointer"
+                              title="Edit Task"
+                              onClick={() => setEditingTask(t)}
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10 cursor-pointer"
+                              title="Set Reminder / Shift"
+                              onClick={() => setReminderTask(t)}
+                            >
+                              <Bell className="h-3 w-3" />
+                            </Button>
                             {activeSprint && (
                               <Button
                                 variant="outline"
@@ -1453,6 +1575,24 @@ export default function ProjectDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Task Dialog */}
+      <EditTaskDialog
+        task={editingTask}
+        open={!!editingTask}
+        onOpenChange={(open) => {
+          if (!open) setEditingTask(null);
+        }}
+      />
+
+      {/* Set Task Reminder Dialog */}
+      <SetTaskReminderDialog
+        task={reminderTask}
+        open={!!reminderTask}
+        onOpenChange={(open) => {
+          if (!open) setReminderTask(null);
+        }}
+      />
     </div>
   );
 }

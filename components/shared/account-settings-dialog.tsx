@@ -112,11 +112,7 @@ export function AccountSettingsDialog({
 
       if (patchRes.ok) {
         await refreshSession();
-        toast.success(
-          json.data.isCloudinary
-            ? "Avatar uploaded to Cloudinary & profile updated!"
-            : "Avatar updated successfully!"
-        );
+        toast.success("Avatar updated successfully!");
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to upload avatar");

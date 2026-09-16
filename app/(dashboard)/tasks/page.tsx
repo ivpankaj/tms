@@ -33,9 +33,19 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { TaskDetailSheet } from "@/components/shared/task-detail-sheet";
 import { CreateTaskDialog } from "@/components/shared/create-task-dialog";
+import { EditTaskDialog } from "@/components/shared/edit-task-dialog";
+import { SetTaskReminderDialog } from "@/components/shared/set-task-reminder-dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { invalidateWorkspaceQueries } from "@/lib/utils/query-helpers";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
@@ -50,6 +60,9 @@ import {
   ListTodo,
   CheckSquare,
   Sparkles,
+  Edit3,
+  Bell,
+  MoreVertical,
 } from "lucide-react";
 
 export default function TasksPage() {
@@ -65,6 +78,12 @@ export default function TasksPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  // Edit & Reminder dialog states
+  const [editTaskId, setEditTaskId] = useState<string | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [reminderTask, setReminderTask] = useState<any | null>(null);
+  const [isReminderOpen, setIsReminderOpen] = useState(false);
 
   // Bulk actions state
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
@@ -120,10 +139,25 @@ export default function TasksPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks-list"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
-      queryClient.invalidateQueries({ queryKey: ["my-tasks"] });
+      invalidateWorkspaceQueries(queryClient);
     },
+  });
+
+  // Single Delete Mutation
+  const deleteSingleTaskMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/v1/tasks/${id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error?.message || "Failed to delete task");
+      return json.data;
+    },
+    onSuccess: () => {
+      toast.success("Task deleted");
+      invalidateWorkspaceQueries(queryClient);
+    },
+    onError: (err: any) => toast.error(err.message),
   });
 
   // Bulk Status Change
@@ -142,8 +176,7 @@ export default function TasksPage() {
     onSuccess: () => {
       toast.success(`Updated ${selectedTaskIds.length} tasks`);
       setSelectedTaskIds([]);
-      queryClient.invalidateQueries({ queryKey: ["tasks-list"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
+      invalidateWorkspaceQueries(queryClient);
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -164,7 +197,7 @@ export default function TasksPage() {
     onSuccess: () => {
       toast.success(`Updated priority for ${selectedTaskIds.length} tasks`);
       setSelectedTaskIds([]);
-      queryClient.invalidateQueries({ queryKey: ["tasks-list"] });
+      invalidateWorkspaceQueries(queryClient);
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -183,11 +216,22 @@ export default function TasksPage() {
     onSuccess: () => {
       toast.success(`Deleted ${selectedTaskIds.length} tasks`);
       setSelectedTaskIds([]);
-      queryClient.invalidateQueries({ queryKey: ["tasks-list"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
+      invalidateWorkspaceQueries(queryClient);
     },
     onError: (err: any) => toast.error(err.message),
   });
+
+  const handleEditTask = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setEditTaskId(id);
+    setIsEditOpen(true);
+  };
+
+  const handleSetReminder = (t: any, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setReminderTask(t);
+    setIsReminderOpen(true);
+  };
 
   // Selection handlers
   const handleSelectAll = (checked: boolean) => {
@@ -379,6 +423,7 @@ export default function TasksPage() {
               <TableHead className="w-40">Project</TableHead>
               <TableHead className="w-40">Assignee</TableHead>
               <TableHead className="w-32">Due Date</TableHead>
+              <TableHead className="w-28 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -406,11 +451,14 @@ export default function TasksPage() {
                   <TableCell>
                     <Skeleton className="h-4 w-20" />
                   </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-12 ml-auto" />
+                  </TableCell>
                 </TableRow>
               ))
             ) : tasks.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-48 text-center text-xs text-muted-foreground">
+                <TableCell colSpan={8} className="h-48 text-center text-xs text-muted-foreground">
                   No tasks match the selected filters.
                 </TableCell>
               </TableRow>
@@ -434,32 +482,20 @@ export default function TasksPage() {
                     </TableCell>
 
                     <TableCell onClick={() => handleOpenTask(task._id)}>
-                      <div className="flex items-center gap-2.5">
-                        <Checkbox
-                          checked={isDone}
-                          onClick={(e) => e.stopPropagation()}
-                          onCheckedChange={() =>
-                            toggleCompleteMutation.mutate({
-                              taskId: task._id,
-                              currentStatus: task.status,
-                            })
-                          }
-                        />
-                        <div className="space-y-0.5 truncate max-w-md">
-                          <span
-                            className={`font-semibold text-xs text-foreground truncate ${
-                              isDone ? "line-through text-muted-foreground" : ""
-                            }`}
-                          >
-                            {task.title}
-                          </span>
-                          {task.subtasks && task.subtasks.length > 0 && (
-                            <p className="text-[10px] text-muted-foreground font-mono">
-                              {task.subtasks.filter((s: any) => s.completed).length} /{" "}
-                              {task.subtasks.length} subtasks
-                            </p>
-                          )}
-                        </div>
+                      <div className="space-y-0.5 truncate max-w-md">
+                        <span
+                          className={`font-semibold text-xs text-foreground truncate ${
+                            isDone ? "line-through text-muted-foreground" : ""
+                          }`}
+                        >
+                          {task.title}
+                        </span>
+                        {task.subtasks && task.subtasks.length > 0 && (
+                          <p className="text-[10px] text-muted-foreground font-mono">
+                            {task.subtasks.filter((s: any) => s.completed).length} /{" "}
+                            {task.subtasks.length} subtasks
+                          </p>
+                        )}
                       </div>
                     </TableCell>
 
@@ -507,6 +543,57 @@ export default function TasksPage() {
                       <span className="text-xs text-muted-foreground">
                         {task.dueDate ? format(new Date(task.dueDate), "MMM d, yyyy") : "—"}
                       </span>
+                    </TableCell>
+
+                    <TableCell onClick={(e) => e.stopPropagation()} className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-primary"
+                          onClick={(e) => handleSetReminder(task, e)}
+                          title="Schedule Reminder / Shift to Reminders"
+                        >
+                          <Bell className="h-3.5 w-3.5 text-amber-500" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                          onClick={(e) => handleEditTask(task._id, e)}
+                          title="Edit Task"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="text-xs">
+                            <DropdownMenuItem onClick={() => handleOpenTask(task._id)}>
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => handleEditTask(task._id, e)}>
+                              <Edit3 className="h-3.5 w-3.5 mr-1.5" />
+                              Edit Task
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => handleSetReminder(task, e)}>
+                              <Bell className="h-3.5 w-3.5 mr-1.5 text-amber-500" />
+                              Set Reminder / Shift
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => deleteSingleTaskMutation.mutate(task._id)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -566,6 +653,24 @@ export default function TasksPage() {
         description={`Are you sure you want to permanently delete ${selectedTaskIds.length} tasks? This cannot be undone.`}
         onConfirm={() => bulkDeleteMutation.mutate()}
         confirmText="Delete Tasks"
+      />
+
+      {/* Edit Task Modal */}
+      <EditTaskDialog
+        taskId={editTaskId}
+        open={isEditOpen}
+        onOpenChange={setIsEditOpen}
+        onOpenReminder={(t) => {
+          setReminderTask(t);
+          setIsReminderOpen(true);
+        }}
+      />
+
+      {/* Set Task Reminder Modal */}
+      <SetTaskReminderDialog
+        task={reminderTask}
+        open={isReminderOpen}
+        onOpenChange={setIsReminderOpen}
       />
     </div>
   );

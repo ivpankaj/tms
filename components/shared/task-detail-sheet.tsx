@@ -25,6 +25,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { EditTaskDialog } from "@/components/shared/edit-task-dialog";
+import { SetTaskReminderDialog } from "@/components/shared/set-task-reminder-dialog";
+import { TaskImageUploader, TaskAttachment } from "@/components/shared/task-image-uploader";
+import { invalidateWorkspaceQueries } from "@/lib/utils/query-helpers";
 import { toast } from "sonner";
 import { formatDistanceToNow, format } from "date-fns";
 import {
@@ -49,6 +53,10 @@ import {
   Zap,
   CheckSquare,
   Timer,
+  Edit3,
+  Bell,
+  Paperclip,
+  Image as ImageIcon,
 } from "lucide-react";
 
 const ISSUE_TYPES = [
@@ -70,7 +78,7 @@ export function TaskDetailSheet({
   open,
   onOpenChange,
 }: TaskDetailSheetProps) {
-  const { organization, user } = useAuth();
+  const { organization, user, authFetch } = useAuth();
   const queryClient = useQueryClient();
 
   // Local state
@@ -82,9 +90,92 @@ export function TaskDetailSheet({
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
   const [newChecklistTitle, setNewChecklistTitle] = useState("");
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isReminderOpen, setIsReminderOpen] = useState(false);
   const [logHours, setLogHours] = useState("");
   const [logDesc, setLogDesc] = useState("");
   const [showLogForm, setShowLogForm] = useState(false);
+  const descImageInputRef = React.useRef<HTMLInputElement>(null);
+  const [isDescUploading, setIsDescUploading] = useState(false);
+
+  const handleUploadDescriptionImage = async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    if (fileArray.length === 0 || !task) return;
+
+    setIsDescUploading(true);
+    try {
+      const currentAttachments: TaskAttachment[] = task.attachments || [];
+      const newAttachments: TaskAttachment[] = [];
+      let updatedDesc = description || task.description || "";
+
+      for (const file of fileArray) {
+        if (!file.type.startsWith("image/")) {
+          toast.error(`File "${file.name}" is not an image.`);
+          continue;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("folder", "task-attachments");
+        formData.append("resourceType", "image");
+
+        const res = await authFetch("/api/v1/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        const json = await res.json();
+        if (!json.success || !json.data?.url) {
+          throw new Error(json.error?.message || `Failed to upload ${file.name}`);
+        }
+
+        const newAtt: TaskAttachment = {
+          name: json.data.name || file.name,
+          url: json.data.url,
+          size: json.data.size || file.size,
+          mimeType: json.data.type || file.type || "image/png",
+          createdAt: new Date().toISOString(),
+        };
+
+        newAttachments.push(newAtt);
+        updatedDesc = updatedDesc
+          ? `${updatedDesc}\n\n![${newAtt.name}](${newAtt.url})\n`
+          : `![${newAtt.name}](${newAtt.url})\n`;
+      }
+
+      const combinedAttachments = [...currentAttachments, ...newAttachments];
+      setDescription(updatedDesc);
+      await updateTaskMutation.mutateAsync({
+        attachments: combinedAttachments,
+        description: updatedDesc,
+      });
+
+      toast.success("Image(s) uploaded and added to description!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload image");
+    } finally {
+      setIsDescUploading(false);
+      if (descImageInputRef.current) descImageInputRef.current.value = "";
+    }
+  };
+
+  const handleDescriptionPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith("image/")) {
+        const file = items[i].getAsFile();
+        if (file) imageFiles.push(file);
+      }
+    }
+
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      await handleUploadDescriptionImage(imageFiles);
+    }
+  };
 
   // 1. Fetch Task Details
   const {
@@ -176,10 +267,7 @@ export function TaskDetailSheet({
     },
     onSuccess: () => {
       toast.success("Work hours logged successfully");
-      queryClient.invalidateQueries({ queryKey: ["task", taskId] });
-      queryClient.invalidateQueries({ queryKey: ["task-timelogs", taskId] });
-      queryClient.invalidateQueries({ queryKey: ["tasks-list"] });
-      queryClient.invalidateQueries({ queryKey: ["workload"] });
+      invalidateWorkspaceQueries(queryClient, { taskId, projectId: task?.projectId?._id || task?.projectId });
       setLogHours("");
       setLogDesc("");
       setShowLogForm(false);
@@ -210,12 +298,7 @@ export function TaskDetailSheet({
     },
     onSuccess: (updated) => {
       queryClient.setQueryData(["task", taskId], updated);
-      queryClient.invalidateQueries({ queryKey: ["tasks-list"] });
-      queryClient.invalidateQueries({ queryKey: ["tasks-board"] });
-      queryClient.invalidateQueries({ queryKey: ["tasks-calendar"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
-      queryClient.invalidateQueries({ queryKey: ["my-tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["task-activities", taskId] });
+      invalidateWorkspaceQueries(queryClient, { taskId, projectId: updated?.projectId?._id || updated?.projectId });
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -269,11 +352,7 @@ export function TaskDetailSheet({
     },
     onSuccess: () => {
       toast.success("Task deleted");
-      queryClient.invalidateQueries({ queryKey: ["tasks-list"] });
-      queryClient.invalidateQueries({ queryKey: ["tasks-board"] });
-      queryClient.invalidateQueries({ queryKey: ["tasks-calendar"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
-      queryClient.invalidateQueries({ queryKey: ["my-tasks"] });
+      invalidateWorkspaceQueries(queryClient, { taskId, projectId: task?.projectId?._id || task?.projectId });
       onOpenChange(false);
     },
     onError: (err: any) => toast.error(err.message),
@@ -365,6 +444,28 @@ export function TaskDetailSheet({
             </div>
 
             <div className="flex items-center gap-2 mr-6">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/10"
+                onClick={() => setIsReminderOpen(true)}
+                title="Schedule Reminder / Shift to Reminders"
+              >
+                <Bell className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Set Reminder</span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1.5"
+                onClick={() => setIsEditOpen(true)}
+                title="Edit Task"
+              >
+                <Edit3 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Edit Task</span>
+              </Button>
+
               <Button
                 variant="ghost"
                 size="icon"
@@ -558,11 +659,11 @@ export function TaskDetailSheet({
 
               {/* Tabs Container */}
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid grid-cols-4 w-full h-9">
-                  <TabsTrigger value="overview" className="text-xs">
+                <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full h-auto p-1 gap-1">
+                  <TabsTrigger value="overview" className="text-xs h-7">
                     Overview
                   </TabsTrigger>
-                  <TabsTrigger value="subtasks" className="text-xs flex items-center gap-1.5">
+                  <TabsTrigger value="subtasks" className="text-xs h-7 flex items-center gap-1">
                     Subtasks
                     {subtasksCount > 0 && (
                       <span className="text-[10px] bg-muted px-1.5 py-0.2 rounded-full font-mono">
@@ -570,7 +671,16 @@ export function TaskDetailSheet({
                       </span>
                     )}
                   </TabsTrigger>
-                  <TabsTrigger value="comments" className="text-xs flex items-center gap-1.5">
+                  <TabsTrigger value="attachments" className="text-xs h-7 flex items-center gap-1">
+                    <Paperclip className="h-3 w-3" />
+                    Files
+                    {task.attachments && task.attachments.length > 0 && (
+                      <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.2 rounded-full font-mono font-bold">
+                        {task.attachments.length}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger value="comments" className="text-xs h-7 flex items-center gap-1">
                     Comments
                     {comments.length > 0 && (
                       <span className="text-[10px] bg-muted px-1.5 py-0.2 rounded-full font-mono">
@@ -578,39 +688,89 @@ export function TaskDetailSheet({
                       </span>
                     )}
                   </TabsTrigger>
-                  <TabsTrigger value="timelogs" className="text-xs flex items-center gap-1.5">
+                  <TabsTrigger value="timelogs" className="text-xs h-7 flex items-center gap-1">
                     <Timer className="h-3 w-3 text-primary" />
                     Time Logs
-                    {task.timeLogs && task.timeLogs.length > 0 && (
-                      <span className="text-[10px] bg-muted px-1.5 py-0.2 rounded-full font-mono">
-                        {task.timeLogs.length}
-                      </span>
-                    )}
                   </TabsTrigger>
-                  <TabsTrigger value="activity" className="text-xs">
+                  <TabsTrigger value="activity" className="text-xs h-7">
                     Activity
                   </TabsTrigger>
                 </TabsList>
 
                 {/* Tab 1: Overview */}
                 <TabsContent value="overview" className="space-y-4 pt-4">
-                  {/* Description */}
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      Description
-                    </Label>
+                  {/* Description with Direct Inline Image Upload */}
+                  <div className="space-y-2 p-3 rounded-xl border bg-muted/10 border-border/70">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <span>Description</span>
+                        <span className="text-[10px] text-muted-foreground font-normal normal-case">
+                          (Supports Paste Ctrl+V for screenshots)
+                        </span>
+                      </Label>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          ref={descImageInputRef}
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => e.target.files && handleUploadDescriptionImage(e.target.files)}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={isDescUploading}
+                          onClick={() => descImageInputRef.current?.click()}
+                          className="h-6 text-[11px] gap-1 text-primary border-primary/30 hover:bg-primary/10 cursor-pointer font-medium"
+                        >
+                          {isDescUploading ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <ImageIcon className="h-3 w-3" />
+                          )}
+                          <span>+ Add Image</span>
+                        </Button>
+                      </div>
+                    </div>
+
                     <Textarea
-                      placeholder="Add a detailed task description..."
+                      placeholder="Add details, acceptance criteria, or paste images directly with Ctrl+V..."
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
+                      onPaste={handleDescriptionPaste}
                       onBlur={() => {
                         if (description !== task.description) {
                           updateTaskMutation.mutate({ description });
                         }
                       }}
-                      rows={4}
-                      className="text-xs resize-none"
+                      rows={5}
+                      className="text-xs resize-none bg-background"
                     />
+
+                    {/* Inline Preview / Attachments */}
+                    {task.attachments && task.attachments.length > 0 && (
+                      <div className="pt-2 space-y-1.5 border-t border-border/50">
+                        <div className="flex items-center justify-between text-[11px] text-muted-foreground font-medium">
+                          <span className="flex items-center gap-1">
+                            <Paperclip className="h-3 w-3" />
+                            Attached Images ({task.attachments.length})
+                          </span>
+                        </div>
+
+                        <TaskImageUploader
+                          attachments={task.attachments}
+                          onChange={(nextAtts) => updateTaskMutation.mutate({ attachments: nextAtts })}
+                          compact={true}
+                          onInsertMarkdown={(snippet) => {
+                            const newDesc = description ? `${description}\n\n${snippet}\n` : `${snippet}\n`;
+                            setDescription(newDesc);
+                            updateTaskMutation.mutate({ description: newDesc });
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Metadata Grid */}
@@ -838,6 +998,24 @@ export function TaskDetailSheet({
                   </div>
                 </TabsContent>
 
+                {/* Tab: Attachments & Media */}
+                <TabsContent value="attachments" className="space-y-4 pt-4">
+                  <div className="space-y-1">
+                    <h4 className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                      <Paperclip className="h-3.5 w-3.5 text-primary" />
+                      Media & Task Attachments
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground">
+                      Upload screenshots, design mocks, and files attached to this task.
+                    </p>
+                  </div>
+                  <TaskImageUploader
+                    attachments={task.attachments || []}
+                    onChange={(newAtts) => updateTaskMutation.mutate({ attachments: newAtts })}
+                    disabled={updateTaskMutation.isPending}
+                  />
+                </TabsContent>
+
                 {/* Tab 3: Comments */}
                 <TabsContent value="comments" className="space-y-4 pt-4">
                   {/* Comments Feed */}
@@ -1062,6 +1240,21 @@ export function TaskDetailSheet({
         description={`Are you sure you want to delete "${task?.title}"? This action cannot be undone.`}
         onConfirm={() => deleteTaskMutation.mutate()}
         confirmText="Delete Task"
+      />
+
+      {/* Full Task Edit Modal */}
+      <EditTaskDialog
+        taskId={taskId}
+        open={isEditOpen}
+        onOpenChange={setIsEditOpen}
+        onOpenReminder={(t) => setIsReminderOpen(true)}
+      />
+
+      {/* Set Task Reminder Modal */}
+      <SetTaskReminderDialog
+        task={task}
+        open={isReminderOpen}
+        onOpenChange={setIsReminderOpen}
       />
     </>
   );

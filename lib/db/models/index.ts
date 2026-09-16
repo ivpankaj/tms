@@ -1257,4 +1257,57 @@ export const Reminder: Model<IReminder> =
   mongoose.models.Reminder ||
   mongoose.model<IReminder>("Reminder", ReminderSchema);
 
+// 26. Sticky Note
+export interface IStickyNote extends Document, BaseEntity {
+  userId: mongoose.Types.ObjectId;
+  title: string;
+  content: string;
+  color: string;
+  posX: number;
+  posY: number;
+  width?: number;
+  height?: number;
+  zIndex: number;
+  isPinned: boolean;
+  isArchived: boolean;
+  tags: string[];
+  checklist?: { id: string; text: string; completed: boolean }[];
+}
+
+const StickyNoteSchema = new Schema<IStickyNote>(
+  {
+    organizationId: { type: Schema.Types.ObjectId, ref: "Organization", required: true, index: true },
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    title: { type: String, default: "" },
+    content: { type: String, default: "" },
+    color: {
+      type: String,
+      default: "yellow",
+    },
+    posX: { type: Number, default: 40 },
+    posY: { type: Number, default: 40 },
+    width: { type: Number, default: 280 },
+    height: { type: Number, default: 280 },
+    zIndex: { type: Number, default: 1 },
+    isPinned: { type: Boolean, default: false },
+    isArchived: { type: Boolean, default: false },
+    tags: [{ type: String }],
+    checklist: [
+      {
+        id: { type: String },
+        text: { type: String },
+        completed: { type: Boolean, default: false },
+      },
+    ],
+    isDeleted: { type: Boolean, default: false, index: true },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User" },
+  },
+  { timestamps: true }
+);
+
+export const StickyNote: Model<IStickyNote> =
+  mongoose.models.StickyNote ||
+  mongoose.model<IStickyNote>("StickyNote", StickyNoteSchema);
+
+
 

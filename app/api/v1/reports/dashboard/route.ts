@@ -2,6 +2,9 @@ import { NextRequest } from "next/server";
 import { authenticateRequest, apiSuccess, apiError } from "@/lib/auth/api-auth";
 import { Task, Project, Team, Activity, User } from "@/lib/db/models";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(req: NextRequest) {
   const { auth, errorResponse } = await authenticateRequest(req, "reports:read");
   if (errorResponse) return errorResponse;

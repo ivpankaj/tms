@@ -17,6 +17,9 @@ import {
 } from "@/components/ui/select";
 import { TaskDetailSheet } from "@/components/shared/task-detail-sheet";
 import { CreateTaskDialog } from "@/components/shared/create-task-dialog";
+import { EditTaskDialog } from "@/components/shared/edit-task-dialog";
+import { SetTaskReminderDialog } from "@/components/shared/set-task-reminder-dialog";
+import { invalidateWorkspaceQueries } from "@/lib/utils/query-helpers";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
@@ -30,7 +33,17 @@ import {
   Paperclip,
   CheckCircle2,
   Users,
+  Edit2,
+  Bell,
+  MoreVertical,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   DndContext,
   useDroppable,
@@ -45,9 +58,13 @@ import {
 function DraggableBoardCard({
   task,
   onSelect,
+  onEdit,
+  onReminder,
 }: {
   task: any;
   onSelect: (id: string) => void;
+  onEdit: (task: any) => void;
+  onReminder: (task: any) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task._id,
@@ -62,6 +79,7 @@ function DraggableBoardCard({
 
   const subtasksCount = task.subtasks?.length || 0;
   const subtasksCompleted = task.subtasks?.filter((s: any) => s.completed).length || 0;
+  const attachmentsCount = task.attachments?.length || 0;
 
   return (
     <div
@@ -70,32 +88,60 @@ function DraggableBoardCard({
       {...attributes}
       {...listeners}
       onClick={() => onSelect(task._id)}
-      className="p-3 rounded-xl border bg-card hover:border-primary/50 transition-all shadow-2xs cursor-grab active:cursor-grabbing space-y-2.5 text-xs select-none"
+      className="group p-3 rounded-xl border bg-card hover:border-primary/50 transition-all shadow-2xs cursor-grab active:cursor-grabbing space-y-2.5 text-xs select-none relative"
     >
       {/* Priority & Project Header */}
       <div className="flex items-center justify-between gap-1">
-        {task.projectId ? (
-          <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0">
-            {task.projectId.key}
-          </Badge>
-        ) : (
-          <span className="text-[10px] text-muted-foreground font-medium">Personal</span>
-        )}
+        <div className="flex items-center gap-1.5 overflow-hidden">
+          {task.projectId ? (
+            <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0 shrink-0">
+              {task.projectId.key}
+            </Badge>
+          ) : (
+            <span className="text-[10px] text-muted-foreground font-medium">Personal</span>
+          )}
 
-        <Badge
-          variant={
-            task.priority === "Urgent" || task.priority === "High"
-              ? "destructive"
-              : "secondary"
-          }
-          className="text-[9px] px-1 py-0 font-normal shrink-0"
+          <Badge
+            variant={
+              task.priority === "Urgent" || task.priority === "High"
+                ? "destructive"
+                : "secondary"
+            }
+            className="text-[9px] px-1 py-0 font-normal shrink-0"
+          >
+            {task.priority}
+          </Badge>
+        </div>
+
+        {/* Quick Action Buttons on hover */}
+        <div
+          className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
-          {task.priority}
-        </Badge>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-muted-foreground hover:text-foreground cursor-pointer"
+            title="Edit Task"
+            onClick={() => onEdit(task)}
+          >
+            <Edit2 className="h-3 w-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10 cursor-pointer"
+            title="Set Reminder / Shift"
+            onClick={() => onReminder(task)}
+          >
+            <Bell className="h-3 w-3" />
+          </Button>
+        </div>
       </div>
 
       {/* Title */}
-      <h5 className="font-semibold text-foreground line-clamp-2 leading-snug">
+      <h5 className="font-semibold text-foreground line-clamp-2 leading-snug group-hover:text-primary transition-colors">
         {task.title}
       </h5>
 
@@ -118,13 +164,20 @@ function DraggableBoardCard({
         </div>
       )}
 
-      {/* Footer Meta: Subtasks, Due Date, Assignee */}
+      {/* Footer Meta: Subtasks, Due Date, Attachments, Assignee */}
       <div className="flex items-center justify-between pt-1.5 border-t border-border/40 text-[10px] text-muted-foreground">
         <div className="flex items-center gap-2">
           {subtasksCount > 0 && (
             <span className="flex items-center gap-0.5 font-mono">
               <ListChecks className="h-3 w-3" />
               {subtasksCompleted}/{subtasksCount}
+            </span>
+          )}
+
+          {attachmentsCount > 0 && (
+            <span className="flex items-center gap-0.5 text-blue-500 font-mono">
+              <Paperclip className="h-3 w-3" />
+              {attachmentsCount}
             </span>
           )}
 
@@ -152,11 +205,15 @@ function BoardColumn({
   tasks,
   onSelectTask,
   onQuickAdd,
+  onEditTask,
+  onReminderTask,
 }: {
   status: string;
   tasks: any[];
   onSelectTask: (id: string) => void;
   onQuickAdd: (status: string) => void;
+  onEditTask: (task: any) => void;
+  onReminderTask: (task: any) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: status,
@@ -218,6 +275,8 @@ function BoardColumn({
             key={task._id}
             task={task}
             onSelect={onSelectTask}
+            onEdit={onEditTask}
+            onReminder={onReminderTask}
           />
         ))}
         {tasks.length === 0 && (
@@ -244,6 +303,8 @@ export default function BoardViewPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createDefaultStatus, setCreateDefaultStatus] = useState("Todo");
+  const [editingTask, setEditingTask] = useState<any | null>(null);
+  const [reminderTask, setReminderTask] = useState<any | null>(null);
 
   // Sensors for dnd-kit
   const sensors = useSensors(
@@ -266,6 +327,7 @@ export default function BoardViewPage() {
       const json = await res.json();
       return json.success ? json.data : [];
     },
+    staleTime: 0,
   });
 
   // Fetch Projects for filter
@@ -291,9 +353,7 @@ export default function BoardViewPage() {
       return json.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["tasks-board"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
-      queryClient.invalidateQueries({ queryKey: ["my-tasks"] });
+      invalidateWorkspaceQueries(queryClient, { taskId: data._id });
       toast.success(`Moved to ${data.status}`);
     },
     onError: (err: any) => toast.error(err.message),
@@ -401,6 +461,8 @@ export default function BoardViewPage() {
               tasks={tasks.filter((t: any) => t.status === colStatus)}
               onSelectTask={handleOpenTask}
               onQuickAdd={handleQuickAdd}
+              onEditTask={(task) => setEditingTask(task)}
+              onReminderTask={(task) => setReminderTask(task)}
             />
           ))}
         </div>
@@ -418,6 +480,24 @@ export default function BoardViewPage() {
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
         defaultStatus={createDefaultStatus}
+      />
+
+      {/* Edit Task Dialog */}
+      <EditTaskDialog
+        task={editingTask}
+        open={!!editingTask}
+        onOpenChange={(open) => {
+          if (!open) setEditingTask(null);
+        }}
+      />
+
+      {/* Set Task Reminder Dialog */}
+      <SetTaskReminderDialog
+        task={reminderTask}
+        open={!!reminderTask}
+        onOpenChange={(open) => {
+          if (!open) setReminderTask(null);
+        }}
       />
     </div>
   );

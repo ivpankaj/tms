@@ -3,6 +3,9 @@ import { authenticateRequest, apiSuccess, apiError } from "@/lib/auth/api-auth";
 import { Reminder } from "@/lib/db/models";
 import { processDueReminders } from "@/lib/services/reminder-scheduler";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(req: NextRequest) {
   const { auth, errorResponse } = await authenticateRequest(req);
   if (errorResponse) return errorResponse;
